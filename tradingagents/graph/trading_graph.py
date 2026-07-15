@@ -346,6 +346,22 @@ class TradingAgentsGraph:
         identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity)
 
+    def build_market_view(self, trade_date, *, extra_context: str = "", indicators=None):
+        """Form the desk's top-down :class:`MarketView` for ``trade_date``.
+
+        Uses the deep-thinking LLM to synthesize the configured macro series and
+        global headlines into a regime + sizing bias. Build it once and pass the
+        result as ``market_view=`` to ``propagate`` / ``run_book`` so every name
+        is sized against the same top-down lens. Never raises for a model issue —
+        it degrades to a low-confidence Neutral view.
+        """
+        from tradingagents.market_view import MarketViewBuilder
+
+        builder = MarketViewBuilder(
+            self.deep_thinking_llm, self.config, indicators=indicators
+        )
+        return builder.build(str(trade_date), extra_context=extra_context)
+
     def _run_signature(self, asset_type: str) -> str:
         """Graph-shape inputs that must invalidate a checkpoint if changed.
 
@@ -383,8 +399,17 @@ class TradingAgentsGraph:
         candidate (initiate) and reasons about book exposure, concentration,
         and cash. Both are optional; omitting them preserves the original
         stateless per-ticker behaviour exactly.
+
+        ``market_view`` may be a plain string or a
+        :class:`~tradingagents.market_view.MarketView` (rendered here), so a
+        view built once via ``build_market_view`` can be threaded through every
+        name in a book run.
         """
         self.ticker = company_name
+
+        # Accept a MarketView object or a plain string as the top-down lens.
+        if hasattr(market_view, "render"):
+            market_view = market_view.render()
 
         # Resolve any pending memory-log entries for this ticker before the pipeline runs.
         self._resolve_pending_entries(company_name)

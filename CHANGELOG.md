@@ -28,6 +28,15 @@ remains `tradingagents` for backward compatibility.
   given the held position, book exposure, concentration, and cash as sizing
   constraints. `run_book(...)` sweeps holdings + a candidate watchlist in one
   call. Runs without a book are unchanged.
+- **Top-down Market View.** `tradingagents/market_view/` adds a
+  `MarketViewBuilder` that synthesizes configured FRED macro series and global
+  headlines into a structured `MarketView` (regime, sizing bias, confidence,
+  narrative, risks/tailwinds) via one structured LLM call.
+  `TradingAgentsGraph.build_market_view(date)` produces it; passing it as
+  `market_view=` to `propagate` / `run_book` applies it as a sizing lens across
+  every name. A deterministic, date-snapshotted `MarketViewStore` persists it
+  for reproducible replay. Degrades to a low-confidence Neutral view rather than
+  failing a run.
 
 ### Changed
 

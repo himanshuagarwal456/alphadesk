@@ -79,9 +79,13 @@ def run_book(
     portfolio: Portfolio | None = None,
     watchlist: list[str] | None = None,
     *,
-    market_view: str = "",
+    market_view: Any = "",
 ) -> dict[str, Any]:
     """Run ``graph.propagate`` over every book target, returning a per-symbol map.
+
+    ``market_view`` may be a string or a
+    :class:`~tradingagents.market_view.MarketView` (``propagate`` renders it);
+    the same top-down lens is applied to every name.
 
     Each value is ``{"stance", "asset_type", "decision", "final_state"}``. A
     per-name failure is captured as ``{"error": ...}`` so one bad ticker does

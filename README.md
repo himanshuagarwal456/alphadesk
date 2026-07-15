@@ -22,7 +22,7 @@ This fork keeps the original multi-agent architecture intact and layers on capab
 | **Portfolio ingestion & book model** | ✅ Shipped | Load an existing portfolio from a broker CSV export into a structured, exposure-aware book (`tradingagents/portfolio/`). |
 | **Deterministic portfolio store** | ✅ Shipped | JSON-backed, date-snapshotted persistence — a foundation for reproducible, replayable runs. |
 | **Portfolio-aware decisioning** | ✅ Shipped | Held names route to *manage/exit* and new candidates to *initiate*; the Portfolio Manager reasons about exposure, concentration, and cash. Run the whole book (holdings + watchlist) in one call. |
-| **Top-down Market View** | 🚧 In progress | A free-text market view threads through state as a sizing lens today; an automated macro-narrative builder is next. |
+| **Top-down Market View** | ✅ Shipped | A `MarketViewBuilder` synthesizes FRED macro series + global headlines into a regime + sizing bias, threaded into every name as a sizing lens (deterministic store included). |
 | **Position lifecycle** | 🗺️ Planned | Persistent per-name thesis with invalidation triggers; initiate → manage → exit. |
 | **Options & backtest harness** | 🗺️ Planned | An options-strategy agent and a `backtrader`-driven replay clock. |
 
@@ -180,6 +180,21 @@ for symbol, r in results.items():
     print(symbol, r["stance"], r.get("decision", r.get("error")))
 ```
 
+### Top-down Market View (new)
+
+Form the desk's macro regime and risk posture once, then apply it as a sizing lens across the whole book. The builder turns FRED macro series (rates, curve, inflation, labor, growth, VIX) plus global headlines into a structured `MarketView`.
+
+```python
+from tradingagents.market_view import MarketViewStore
+
+view = ta.build_market_view("2026-01-15")   # -> MarketView(regime, sizing_bias, ...)
+print(view.regime, view.sizing_bias, view.confidence)
+
+# Persist it (deterministic, date-snapshotted) and thread it through the book run
+MarketViewStore("~/.tradingagents/market_view").snapshot(view)
+results = run_book(ta, "2026-01-15", book, watchlist=["TSLA", "MSFT"], market_view=view)
+```
+
 ---
 
 ## Roadmap
@@ -207,7 +222,7 @@ flowchart TB
 - [x] Initiate vs. manage/exit routing per name
 - [x] Portfolio-aware Portfolio Manager (exposure / concentration / cash constraints)
 - [x] Run the whole book at once (holdings + candidate watchlist)
-- [ ] Automated top-down Market View builder (macro narrative as a sizing lens)
+- [x] Automated top-down Market View builder (macro narrative as a sizing lens)
 - [ ] Persistent per-name thesis with invalidation triggers
 - [ ] Options-strategy agent
 - [ ] `backtrader` replay/backtest harness
