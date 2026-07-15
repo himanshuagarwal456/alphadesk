@@ -32,6 +32,7 @@ from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import create_llm_client
+from tradingagents.portfolio.context import classify_stance, render_portfolio_context
 from tradingagents.reporting import write_report_tree
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -359,7 +360,14 @@ class TradingAgentsGraph:
             f"asset={asset_type}",
         ])
 
-    def propagate(self, company_name, trade_date, asset_type: str = "stock"):
+    def propagate(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        portfolio=None,
+        market_view: str = "",
+    ):
         """Run the trading agents graph for a company on a specific date.
 
         ``asset_type`` selects between the stock pipeline (default) and the
@@ -368,6 +376,13 @@ class TradingAgentsGraph:
         ``checkpoint_enabled`` is set in config, the graph is recompiled with
         a per-ticker SqliteSaver so a crashed run can resume from the last
         successful node on a subsequent invocation with the same ticker+date.
+
+        ``portfolio`` (a :class:`~tradingagents.portfolio.Portfolio`) and
+        ``market_view`` make the run portfolio-aware: the Portfolio Manager is
+        told whether this name is a held position (manage/exit) or a new
+        candidate (initiate) and reasons about book exposure, concentration,
+        and cash. Both are optional; omitting them preserves the original
+        stateless per-ticker behaviour exactly.
         """
         self.ticker = company_name
 
@@ -394,7 +409,13 @@ class TradingAgentsGraph:
                 logger.info("Starting fresh for %s on %s", company_name, trade_date)
 
         try:
-            return self._run_graph(company_name, trade_date, asset_type=asset_type)
+            return self._run_graph(
+                company_name,
+                trade_date,
+                asset_type=asset_type,
+                portfolio=portfolio,
+                market_view=market_view,
+            )
         finally:
             if self._checkpointer_ctx is not None:
                 self._checkpointer_ctx.__exit__(None, None, None)
@@ -416,18 +437,41 @@ class TradingAgentsGraph:
             )
         return write_report_tree(final_state, ticker, save_path)
 
-    def _run_graph(self, company_name, trade_date, asset_type: str = "stock"):
+    def _run_graph(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        portfolio=None,
+        market_view: str = "",
+    ):
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM and the
         # deterministically resolved instrument identity for all agents.
         past_context = self.memory_log.get_past_context(company_name)
         instrument_context = self.resolve_instrument_context(company_name, asset_type)
+
+        # Portfolio-awareness: resolve the stance (initiate vs. manage) and
+        # render the book briefing. Both empty when no book is supplied, which
+        # keeps the Portfolio Manager prompt (and thus the run) unchanged.
+        if portfolio is not None or market_view:
+            position_stance = classify_stance(portfolio, company_name).value
+            portfolio_context = render_portfolio_context(
+                portfolio, company_name, market_view=market_view
+            )
+        else:
+            position_stance = ""
+            portfolio_context = ""
+
         init_agent_state = self.propagator.create_initial_state(
             company_name,
             trade_date,
             asset_type=asset_type,
             past_context=past_context,
             instrument_context=instrument_context,
+            portfolio_context=portfolio_context,
+            position_stance=position_stance,
+            market_view=market_view,
         )
         args = self.propagator.get_graph_args()
 

@@ -1,5 +1,5 @@
 services:
-  tradingagents:
+  alphadesk:
     build: .
     env_file:
       - .env
@@ -15,7 +15,7 @@ services:
     profiles:
       - ollama
 
-  tradingagents-ollama:
+  alphadesk-ollama:
     build: .
     env_file:
       - .env

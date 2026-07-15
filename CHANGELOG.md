@@ -1,10 +1,38 @@
 # Changelog
 
-All notable changes to TradingAgents are documented here.
+All notable changes to AlphaDesk (a fork of TradingAgents) are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Breaking changes within the 0.x line are called out explicitly.
+
+## [Unreleased] — AlphaDesk fork
+
+Rebrands the distribution to **AlphaDesk** and adds a portfolio-awareness layer
+on top of the upstream TradingAgents architecture. The Python import package
+remains `tradingagents` for backward compatibility.
+
+### Added
+
+- **Parallel analyst execution.** The four analysts run concurrently as
+  isolated subgraphs (own message channel + tool loop) that fan out from
+  `START` and fan in to the research debate, instead of the previous serial
+  chain with message-clear nodes.
+- **Portfolio book model.** `tradingagents/portfolio/` adds `Position` /
+  `Portfolio` schemas (signed quantities, exposure / concentration / weight
+  helpers), a resilient broker-CSV loader, and a deterministic, date-snapshotted
+  JSON store as a replay foundation.
+- **Portfolio-aware decisioning.** A book can be passed to a run
+  (`propagate(..., portfolio=book, market_view=...)`): each name is classified
+  `manage` (held) vs `initiate` (new candidate), and the Portfolio Manager is
+  given the held position, book exposure, concentration, and cash as sizing
+  constraints. `run_book(...)` sweeps holdings + a candidate watchlist in one
+  call. Runs without a book are unchanged.
+
+### Changed
+
+- CLI, distribution name, and docs rebranded to AlphaDesk; `alphadesk` is the
+  primary console command with `tradingagents` kept as a back-compat alias.
 
 ## [0.3.1] — 2026-07-05
 

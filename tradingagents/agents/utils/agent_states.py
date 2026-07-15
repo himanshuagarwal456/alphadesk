@@ -74,3 +74,8 @@ class AgentState(MessagesState):
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
     past_context: Annotated[str, "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)"]
+
+    # Portfolio-awareness (empty when no book is supplied -> unchanged behaviour)
+    portfolio_context: Annotated[str, "Rendered book briefing (stance, held position, exposure/cash) injected into the Portfolio Manager"]
+    position_stance: Annotated[str, "initiate | manage — whether this run opens or manages existing exposure"]
+    market_view: Annotated[str, "Top-down market/regime view used as a sizing lens"]

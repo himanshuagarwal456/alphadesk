@@ -39,10 +39,17 @@ def create_portfolio_manager(llm):
             else ""
         )
 
+        # Portfolio-awareness: when a book was supplied, this block carries the
+        # stance (initiate vs. manage/exit), the held position, and book-level
+        # exposure/cash constraints. Empty otherwise, so the prompt is unchanged
+        # for stateless per-ticker runs.
+        portfolio_context = state.get("portfolio_context", "")
+        portfolio_block = f"\n{portfolio_context}\n\n---\n" if portfolio_context else ""
+
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
 {instrument_context}
-
+{portfolio_block}
 ---
 
 **Rating Scale** (use exactly one):

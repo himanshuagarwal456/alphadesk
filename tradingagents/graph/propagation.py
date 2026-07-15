@@ -22,6 +22,9 @@ class Propagator:
         asset_type: str = "stock",
         past_context: str = "",
         instrument_context: str = "",
+        portfolio_context: str = "",
+        position_stance: str = "",
+        market_view: str = "",
     ) -> dict[str, Any]:
         """Create the initial state for the agent graph.
 
@@ -30,6 +33,12 @@ class Propagator:
         ``TradingAgentsGraph.resolve_instrument_context``). When empty, agents
         fall back to ticker-only context via
         ``get_instrument_context_from_state``.
+
+        ``portfolio_context`` / ``position_stance`` / ``market_view`` carry the
+        portfolio-awareness layer. They default to empty strings so a run
+        without a book is byte-for-byte identical to the pre-portfolio
+        behaviour; when populated (by ``TradingAgentsGraph.propagate`` given a
+        book), the Portfolio Manager reasons about the existing exposure.
         """
         return {
             "messages": [("human", company_name)],
@@ -38,6 +47,9 @@ class Propagator:
             "instrument_context": instrument_context,
             "trade_date": str(trade_date),
             "past_context": past_context,
+            "portfolio_context": portfolio_context,
+            "position_stance": position_stance,
+            "market_view": market_view,
             "investment_debate_state": InvestDebateState(
                 {
                     "bull_history": "",
