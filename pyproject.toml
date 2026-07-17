@@ -44,12 +44,20 @@ dev = [
 bedrock = [
     "langchain-aws>=1.5.0",
 ]
+# Interactive charts for the feed. Optional so a headless/CLI install stays
+# lean: pip install "alphadesk[ui]" then `alphadesk-feed`. The feed itself is a
+# self-contained HTML page (Plotly.js from CDN) — no web server required.
+ui = [
+    "plotly>=5.24",
+]
 
 [project.scripts]
 # `alphadesk` is the primary command; `tradingagents` is kept as a back-compat
 # alias so existing scripts / muscle memory keep working after the rebrand.
 alphadesk = "cli.main:app"
 tradingagents = "cli.main:app"
+# Builds the portfolio-aware insight feed (requires the [ui] extra).
+alphadesk-feed = "tradingagents.ui.feed_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["tradingagents*", "cli*"]

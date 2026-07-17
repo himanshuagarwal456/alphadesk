@@ -38,6 +38,17 @@ remains `tradingagents` for backward compatibility.
   for reproducible replay. Degrades to a low-confidence Neutral view rather than
   failing a run.
 
+- **Portfolio-aware insight feed — "FinTok" (v1).** `tradingagents/ui/` turns a
+  completed run's structured knowledge into a *narrative*: a horizontal album of
+  interactive chart cards arced `hook → evidence → tension → verdict` (price with
+  the thesis drawn on it, sentiment gauge, risk/reward band, verdict dial).
+  Narratives stack vertically, ranked by a portfolio-aware **dominance** score
+  (conviction × signal extremity × book weight). Rendered as a self-contained
+  HTML page (CSS scroll-snap two-axis swipe + Plotly.js, no server). New
+  `alphadesk-feed` command (`--demo` for a no-network sample; `--portfolio` to
+  build a portfolio-aware feed from saved runs). Install with the `[ui]` extra.
+  v1 covers single-name narratives.
+
 ### Changed
 
 - CLI, distribution name, and docs rebranded to AlphaDesk; `alphadesk` is the

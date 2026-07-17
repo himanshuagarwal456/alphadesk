@@ -18,6 +18,7 @@ This fork keeps the original multi-agent architecture intact and layers on capab
 
 | Capability | Status | Summary |
 |-----------|--------|---------|
+| **Portfolio-aware feed (FinTok)** | ✅ Shipped (v1) | Agents' knowledge rendered as a swipeable vertical feed of single-name narratives — chart cards arced *hook → evidence → tension → verdict* — ranked by how much each story matters to *your* book. `alphadesk-feed --demo`. |
 | **Parallel analyst execution** | ✅ Shipped | The four analysts run concurrently (isolated message channels, fan-out/fan-in) instead of a serial chain — bounded by the slowest analyst rather than their sum. |
 | **Portfolio ingestion & book model** | ✅ Shipped | Load an existing portfolio from a broker CSV export into a structured, exposure-aware book (`tradingagents/portfolio/`). |
 | **Deterministic portfolio store** | ✅ Shipped | JSON-backed, date-snapshotted persistence — a foundation for reproducible, replayable runs. |
@@ -195,6 +196,28 @@ MarketViewStore("~/.tradingagents/market_view").snapshot(view)
 results = run_book(ta, "2026-01-15", book, watchlist=["TSLA", "MSFT"], market_view=view)
 ```
 
+### Portfolio-aware feed — "FinTok" (new)
+
+The idea: **use the agents to generate knowledge, visualize it, and disseminate it in a vertical feed.** Each completed run becomes a *narrative* — a horizontal album of chart cards that tells that name's story (`hook → evidence → tension → verdict`) — and narratives are stacked vertically, ranked by how much each one matters to *your* book (conviction × signal × portfolio weight).
+
+The feed is a self-contained HTML page (CSS scroll-snap for the two-axis swipe, Plotly.js for interactive charts) — no server or build step. Install the extra and try the demo:
+
+```bash
+pip install ".[ui]"
+alphadesk-feed --demo                          # sample feed, no API/network
+alphadesk-feed --portfolio book.csv            # build from your saved runs, portfolio-aware
+```
+
+```python
+from tradingagents.ui import build_feed, write_feed_html, load_saved_runs
+
+runs = load_saved_runs("~/.tradingagents/logs")          # past runs on disk
+feed = build_feed(runs, portfolio=book)                  # ranked narratives
+write_feed_html(feed, "feed.html")                       # open in any browser
+```
+
+> v1 covers single-name narratives. Theme/macro narratives (one story spanning several names) and a real swipe front-end are next.
+
 ---
 
 ## Roadmap
@@ -217,6 +240,8 @@ flowchart TB
 ```
 
 - [x] Parallel analyst execution
+- [x] Portfolio-aware insight feed (FinTok) — single-name narratives, chart cards, dominance ranking
+- [ ] Theme / macro narratives (one story spanning multiple names) + real swipe front-end
 - [x] Portfolio book model + broker-CSV ingestion + deterministic store
 - [x] Thread the book (and market view) through graph state
 - [x] Initiate vs. manage/exit routing per name
