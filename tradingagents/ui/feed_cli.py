@@ -22,6 +22,7 @@ def _default_out() -> Path:
 
 def _build_from_runs(results_dir: str | None, portfolio_csv: str | None):
     from tradingagents.default_config import DEFAULT_CONFIG
+    from tradingagents.thesis import LivingThesisStore
 
     from .deck_builder import build_feed
     from .market_data import fetch_ohlcv
@@ -45,7 +46,12 @@ def _build_from_runs(results_dir: str | None, portfolio_csv: str | None):
         if df is not None:
             ohlcv_map[symbol] = df
 
-    return build_feed(runs, portfolio=portfolio, ohlcv_map=ohlcv_map), results_dir
+    return build_feed(
+        runs,
+        portfolio=portfolio,
+        ohlcv_map=ohlcv_map,
+        thesis_store=LivingThesisStore(DEFAULT_CONFIG["thesis_store_dir"]),
+    ), results_dir
 
 
 def main(argv=None) -> int:

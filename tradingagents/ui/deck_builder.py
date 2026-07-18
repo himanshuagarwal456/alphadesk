@@ -24,6 +24,7 @@ from typing import Any
 import plotly.graph_objects as go
 
 from tradingagents.evidence import Evidence
+from tradingagents.thesis import LivingThesisStore, diff_or_none
 
 from . import charts
 from .chart_selector import select_chart_spec
@@ -152,6 +153,7 @@ def build_narrative(
     *,
     portfolio: Any = None,
     ohlcv=None,
+    thesis_store: LivingThesisStore | None = None,
 ) -> Narrative:
     """Assemble the single-name narrative arc from one run's ``final_state``."""
     symbol = (final_state.get("company_of_interest") or "?").upper()
@@ -214,6 +216,11 @@ def build_narrative(
         card_type="portfolio_impact", portfolio_impact=portfolio_impact,
         visualization_intent=hook_intent, chart_spec=hook_spec,
     ))
+    thesis_card = _thesis_change_card(
+        thesis_store, symbol, trade_date, portfolio_impact
+    )
+    if thesis_card is not None:
+        cards.append(thesis_card)
 
     # --- EVIDENCE: market / technical ---
     if final_state.get("market_report"):
@@ -345,6 +352,35 @@ def _portfolio_impact(held: bool, weight: float | None) -> str:
     return "Watchlist candidate: no current portfolio exposure."
 
 
+def _thesis_change_card(
+    store: LivingThesisStore | None,
+    symbol: str,
+    trade_date: str,
+    portfolio_impact: str,
+) -> Card | None:
+    if store is None or not trade_date:
+        return None
+    current = store.load_snapshot(symbol, trade_date)
+    if current is None or not current.prior_snapshot_id:
+        return None
+    prior_date = current.prior_snapshot_id.rsplit("_", 1)[-1]
+    diff = diff_or_none(store.load_snapshot(symbol, prior_date), current)
+    if diff is None:
+        return None
+    return Card(
+        id=f"{symbol}-thesis-{trade_date}",
+        kind=CardKind.CONTEXT,
+        title="Thesis change",
+        headline=diff.headline,
+        badges=["Thesis", f"{diff.rating_delta:+d} rating step"],
+        card_type="thesis_change",
+        evidence_ids=diff.evidence_added,
+        portfolio_impact=portfolio_impact,
+        materiality_score=diff.materiality_score,
+        chart=_fig_to_dict(charts.rating_dial(current.rating.value)),
+    )
+
+
 def _coerce_evidence(items: list[Any]) -> list[Evidence]:
     """Accept persisted JSON or model instances while ignoring malformed records."""
     evidence = []
@@ -368,6 +404,7 @@ def build_feed(
     portfolio: Any = None,
     ohlcv_map: dict[str, Any] | None = None,
     as_of: str | None = None,
+    thesis_store: LivingThesisStore | None = None,
 ) -> Feed:
     """Build a dominance-ranked feed from one or more completed runs."""
     ohlcv_map = ohlcv_map or {}
@@ -375,6 +412,7 @@ def build_feed(
         build_narrative(
             state, portfolio=portfolio,
             ohlcv=ohlcv_map.get((state.get("company_of_interest") or "").upper()),
+            thesis_store=thesis_store,
         )
         for state in runs
     ]
