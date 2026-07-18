@@ -26,8 +26,10 @@ migration-managed schema — without abandoning the existing file layouts yet.
    go under `ALPHADESK_OBJECT_STORE_DIR`; an S3 backend can replace it later.
 6. **Compatibility exporters.** Repositories remain canonical; exporters rewrite
    the historical JSON/Markdown shapes so CLI and feed consumers keep working.
-7. **Alembic migrations.** `alembic upgrade head` / `downgrade` are supported;
-   tests may also call `SessionFactory.create_all()` on SQLite.
+7. **Alembic migrations.** Scripts live under ``migrations/`` (not a top-level
+   ``alembic/`` package name, which would shadow the Alembic library on
+   ``sys.path``). ``alembic upgrade head`` / ``downgrade`` are supported; tests
+   may also call ``SessionFactory.create_all()`` on SQLite.
 
 ## Consequences
 

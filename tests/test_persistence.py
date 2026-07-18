@@ -8,12 +8,14 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("sqlalchemy")
-pytest.importorskip("alembic")
+# Import a submodule so a stray local ``alembic/`` directory cannot mask the
+# real library the way ``importorskip("alembic")`` would.
+pytest.importorskip("alembic.config")
 
+from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 
-from alembic import command
 from tradingagents.agents.schemas import PortfolioRating
 from tradingagents.domain.schemas import AnalysisRun, IntelligenceCardRecord, RunStatus
 from tradingagents.evidence.schemas import Evidence
