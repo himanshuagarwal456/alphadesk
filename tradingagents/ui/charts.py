@@ -42,6 +42,11 @@ def _col(df: pd.DataFrame, name: str) -> pd.Series:
     raise KeyError(f"column {name!r} not found in {list(df.columns)}")
 
 
+def close_series(df: pd.DataFrame) -> pd.Series:
+    """Return the close series using the same case-insensitive lookup as charts."""
+    return _col(df, "close")
+
+
 def _base_layout(fig: go.Figure, title: str = "") -> go.Figure:
     fig.update_layout(
         title=title or None,

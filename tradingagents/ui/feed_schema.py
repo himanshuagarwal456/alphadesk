@@ -21,6 +21,11 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from tradingagents.evidence import Evidence
+
+from .chart_spec import ChartSpec
+from .visualization_intent import VisualizationIntent
+
 
 class CardKind(str, Enum):
     """Where a card sits in the narrative arc (drives styling + ordering)."""
@@ -48,6 +53,16 @@ class Card(BaseModel):
         default=None,
         description="A Plotly figure as a plain dict (figure.to_dict()); None for text-only cards.",
     )
+    card_type: str | None = Field(
+        default=None,
+        description="Intelligence claim type, e.g. event, risk, thesis_change.",
+    )
+    evidence_ids: list[str] = Field(default_factory=list)
+    evidence: list[Evidence] = Field(default_factory=list)
+    portfolio_impact: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    visualization_intent: VisualizationIntent | None = None
+    chart_spec: ChartSpec | None = None
 
 
 class Narrative(BaseModel):

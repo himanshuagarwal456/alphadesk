@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from tradingagents.evidence import EvidenceStore
+
 
 def load_saved_runs(results_dir: str | Path) -> list[dict[str, Any]]:
     """Return the latest saved ``final_state`` per ticker, most-recent first."""
@@ -28,6 +30,11 @@ def load_saved_runs(results_dir: str | Path) -> list[dict[str, Any]]:
         # The saved log names the trader field differently from the live state.
         if "trader_investment_plan" not in data and "trader_investment_decision" in data:
             data["trader_investment_plan"] = data["trader_investment_decision"]
+        try:
+            evidence = EvidenceStore(log.parent).load_snapshot(str(data.get("trade_date", "")))
+        except (OSError, ValueError, json.JSONDecodeError):
+            evidence = []
+        data["evidence"] = [item.model_dump(mode="json") for item in evidence]
         symbol = (data.get("company_of_interest") or "").upper()
         if not symbol:
             continue

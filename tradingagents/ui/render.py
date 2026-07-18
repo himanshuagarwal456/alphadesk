@@ -51,6 +51,12 @@ _TEMPLATE = r"""<!doctype html>
     max-height:26vh; overflow:auto; margin-top:10px; }
   details.body-wrap { margin-top:10px; }
   details.body-wrap summary { color:var(--accent); cursor:pointer; font-size:13px; }
+  details.sources { margin-top:10px; }
+  details.sources summary { color:var(--accent); cursor:pointer; font-size:13px; }
+  .source { border-top:1px solid var(--edge); padding:8px 0; }
+  .source a { color:var(--fg); font-size:13px; font-weight:600; text-decoration:none; }
+  .source-meta { color:var(--dim); font-size:11px; margin-top:2px; }
+  .source-summary { color:var(--dim); font-size:12px; line-height:1.4; margin-top:4px; }
   .dots { display:flex; gap:5px; justify-content:center; padding:6px 0 10px; }
   .dot { width:6px; height:6px; border-radius:50%; background:var(--edge); }
   .dot.active { background:var(--accent); }
@@ -91,7 +97,35 @@ function renderCard(card) {
     wrap.appendChild(el("div", "body", card.body));
     c.appendChild(wrap);
   }
+  if (card.portfolio_impact) {
+    c.appendChild(el("div", "body", "Portfolio impact: " + card.portfolio_impact));
+  }
+  if (card.evidence && card.evidence.length) {
+    c.appendChild(renderSources(card.evidence));
+  }
   return c;
+}
+
+function renderSources(evidence) {
+  const wrap = el("details", "sources");
+  wrap.appendChild(el("summary", null, "Sources (" + evidence.length + ")"));
+  evidence.forEach(source => {
+    const item = el("div", "source");
+    const link = document.createElement("a");
+    link.textContent = source.title || "Source";
+    if (source.source_url) {
+      link.href = source.source_url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    }
+    item.appendChild(link);
+    const meta = [source.publisher, source.published_at, source.provider_id]
+      .filter(Boolean).join(" · ");
+    if (meta) item.appendChild(el("div", "source-meta", meta));
+    if (source.summary) item.appendChild(el("div", "source-summary", source.summary));
+    wrap.appendChild(item);
+  });
+  return wrap;
 }
 
 function renderNarrative(nrv) {
