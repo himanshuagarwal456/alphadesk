@@ -14,6 +14,12 @@ remains `tradingagents` for backward compatibility.
 
 ### Added
 
+- **SEC company facts as evidence (alpha PR 4).** `get_fundamentals` via the
+  `sec` vendor now appends official XBRL metrics (revenue, net income,
+  operating income, assets, liabilities, diluted EPS, operating cash flow).
+  Facts are look-ahead safe (filed-date cutoff), amendments deterministically
+  supersede originals, and each value is captured as evidence carrying its
+  us-gaap concept, period, form, accession, and official source link.
 - **Structured outputs are canonical (alpha PR 3).** Research Manager, Trader,
   Sentiment Analyst, and Portfolio Manager keep their typed payloads in graph
   state and saved runs (`*_struct` fields); the feed reads structured rating,

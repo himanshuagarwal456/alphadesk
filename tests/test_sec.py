@@ -46,11 +46,44 @@ _SUBMISSIONS = {
 }
 
 
+_COMPANYFACTS = {
+    "facts": {
+        "us-gaap": {
+            "Revenues": {
+                "units": {
+                    "USD": [
+                        # original filing for FY2025 Q4 period
+                        {"end": "2025-12-27", "val": 124_000_000_000, "accn": "0000320193-26-000010",
+                         "fy": 2026, "fp": "Q1", "form": "10-Q", "filed": "2026-01-30"},
+                        # amendment for the same period, filed later -> must win
+                        {"end": "2025-12-27", "val": 124_500_000_000, "accn": "0000320193-26-000020",
+                         "fy": 2026, "fp": "Q1", "form": "10-Q/A", "filed": "2026-02-15"},
+                        # future-filed fact -> excluded by look-ahead cutoff
+                        {"end": "2026-03-28", "val": 90_000_000_000, "accn": "0000320193-26-000050",
+                         "fy": 2026, "fp": "Q2", "form": "10-Q", "filed": "2026-05-01"},
+                    ]
+                }
+            },
+            "EarningsPerShareDiluted": {
+                "units": {
+                    "USD/shares": [
+                        {"end": "2025-12-27", "val": 2.40, "accn": "0000320193-26-000010",
+                         "fy": 2026, "fp": "Q1", "form": "10-Q", "filed": "2026-01-30"},
+                    ]
+                }
+            },
+        }
+    }
+}
+
+
 def _request_stub(url: str) -> dict:
     if url == sec.SEC_TICKERS:
         return _TICKERS
     if url.startswith(f"{sec.SEC_DATA}/submissions/"):
         return _SUBMISSIONS
+    if url.startswith(f"{sec.SEC_DATA}/api/xbrl/companyfacts/"):
+        return _COMPANYFACTS
     raise AssertionError(f"unexpected SEC url: {url}")
 
 
@@ -112,8 +145,11 @@ class SecFilingTests(unittest.TestCase):
         with mock.patch.object(sec, "_request", side_effect=_request_stub):
             sec.get_fundamentals("AAPL", "2026-04-01")
         captured = sec.consume_captured_filing_evidence("AAPL")
-        self.assertEqual(len(captured), 3)
-        record = captured[0]
+        # 3 filings + 2 companyfacts metrics (Revenue, Diluted EPS)
+        self.assertEqual(len(captured), 5)
+        filings = [item for item in captured if "us-gaap:" not in item.summary]
+        self.assertEqual(len(filings), 3)
+        record = filings[0]
         self.assertEqual(record.provider_id, "sec")
         self.assertEqual(record.source_type, "filing")
         self.assertEqual(record.publisher, "SEC EDGAR")
@@ -125,6 +161,44 @@ class SecFilingTests(unittest.TestCase):
         with mock.patch.object(sec, "_request", side_effect=_request_stub):
             out = sec.get_fundamentals("AAPL", "2020-01-01")
         self.assertIn("no filings", out.lower())
+
+
+@pytest.mark.unit
+class SecCompanyFactsTests(unittest.TestCase):
+    def setUp(self):
+        sec.clear_captured_filing_evidence("AAPL")
+
+    def test_amended_fact_wins_and_lookahead_is_excluded(self):
+        with mock.patch.object(sec, "_request", side_effect=_request_stub):
+            out = sec.get_fundamentals("AAPL", "2026-04-01")
+        # amendment (filed 2026-02-15) supersedes the original for the period
+        self.assertIn("124,500,000,000", out)
+        self.assertNotIn("124,000,000,000 USD", out)
+        # the fact filed 2026-05-01 did not exist on 2026-04-01
+        self.assertNotIn("90,000,000,000", out)
+        self.assertIn("| Diluted EPS | 2.4 USD/shares | 2025-12-27 |", out)
+
+    def test_company_fact_evidence_carries_xbrl_provenance(self):
+        with mock.patch.object(sec, "_request", side_effect=_request_stub):
+            sec.get_fundamentals("AAPL", "2026-04-01")
+        captured = sec.consume_captured_filing_evidence("AAPL")
+        fact_records = [item for item in captured if "us-gaap:" in item.summary]
+        self.assertEqual(len(fact_records), 2)  # Revenue + Diluted EPS
+        revenue = next(item for item in fact_records if "Revenue" in item.title)
+        self.assertIn("us-gaap:Revenues", revenue.summary)
+        self.assertIn("0000320193-26-000020", revenue.summary)  # amended accession
+        self.assertIn("/Archives/edgar/data/320193/", str(revenue.source_url))
+
+    def test_missing_companyfacts_degrades_to_filings_only(self):
+        def _no_facts(url):
+            if url.startswith(f"{sec.SEC_DATA}/api/xbrl/companyfacts/"):
+                raise ValueError("no facts for this entity")
+            return _request_stub(url)
+
+        with mock.patch.object(sec, "_request", side_effect=_no_facts):
+            out = sec.get_fundamentals("AAPL", "2026-04-01")
+        self.assertIn("SEC filings", out)
+        self.assertNotIn("Official company facts", out)
 
 
 @pytest.mark.unit
