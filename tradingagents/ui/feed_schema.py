@@ -61,6 +61,10 @@ class Card(BaseModel):
     evidence: list[Evidence] = Field(default_factory=list)
     portfolio_impact: str | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
+    source_quality_score: float | None = Field(default=None, ge=0, le=1)
+    freshness_score: float | None = Field(default=None, ge=0, le=1)
+    materiality_score: float | None = Field(default=None, ge=0, le=1)
+    novelty_score: float | None = Field(default=None, ge=0, le=1)
     visualization_intent: VisualizationIntent | None = None
     chart_spec: ChartSpec | None = None
 

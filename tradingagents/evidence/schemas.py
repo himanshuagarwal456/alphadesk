@@ -22,7 +22,7 @@ class Evidence(BaseModel):
         description="Stable content-derived ID. Generated when omitted.",
     )
     provider_id: str = Field(description="Connector that retrieved this source, e.g. yfinance.")
-    source_type: Literal["news"] = "news"
+    source_type: Literal["news", "macro"] = "news"
     title: str = Field(min_length=1)
     source_url: HttpUrl | None = None
     publisher: str | None = None
@@ -36,6 +36,12 @@ class Evidence(BaseModel):
     raw_content_ref: str | None = Field(
         default=None,
         description="Optional external reference only; publisher-owned raw content is not stored.",
+    )
+    source_quality_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Provider-authority score assigned by the normalizer.",
     )
     schema_version: Literal[1] = 1
 

@@ -10,9 +10,12 @@ the routing layer treats it as "unavailable" rather than a hard crash.
 """
 import logging
 import os
+import threading
 from datetime import datetime, timedelta
 
 import requests
+
+from tradingagents.evidence import Evidence
 
 from .errors import VendorNotConfiguredError
 
@@ -31,6 +34,8 @@ DEFAULT_LOOKBACK_DAYS = 365
 # Rows cap for the rendered table: recent values matter most for a decision, and
 # daily series (yields, VIX) over a long window would otherwise flood context.
 MAX_ROWS = 40
+_CAPTURED_MACRO_EVIDENCE: list[Evidence] = []
+_CAPTURED_MACRO_EVIDENCE_LOCK = threading.Lock()
 
 # Curated human-friendly aliases -> FRED series IDs. Anything not listed is used
 # verbatim as a raw FRED series ID, so power users are never limited to this set.
@@ -133,6 +138,60 @@ def _request(path: str, params: dict) -> dict:
     return response.json()
 
 
+def normalize_fred_series(
+    series_id: str,
+    info: dict,
+    points: list[tuple[str, str]],
+) -> Evidence:
+    """Normalize a successful FRED observation window into one macro record."""
+    first_date, first_value = points[0]
+    last_date, last_value = points[-1]
+    units = info.get("units_short") or info.get("units", "")
+    try:
+        change = float(last_value) - float(first_value)
+        summary = (
+            f"Latest: {last_value} {units} ({last_date}); "
+            f"change over window: {change:+.2f} from {first_value} ({first_date})."
+        )
+    except ValueError:
+        summary = f"Latest: {last_value} {units} ({last_date})."
+    return Evidence(
+        provider_id="fred",
+        source_type="macro",
+        title=f"{info.get('title', series_id)} ({series_id})",
+        source_url=f"https://fred.stlouisfed.org/series/{series_id}",
+        publisher="FRED",
+        published_at=datetime.strptime(last_date, "%Y-%m-%d"),
+        summary=summary,
+        source_quality_score=0.95,
+    )
+
+
+def clear_captured_macro_evidence() -> None:
+    """Discard FRED evidence captured before a new graph run."""
+    with _CAPTURED_MACRO_EVIDENCE_LOCK:
+        _CAPTURED_MACRO_EVIDENCE.clear()
+
+
+def consume_captured_macro_evidence() -> list[Evidence]:
+    """Return and clear FRED records captured by the macro tool during a run."""
+    with _CAPTURED_MACRO_EVIDENCE_LOCK:
+        evidence = list(_CAPTURED_MACRO_EVIDENCE)
+        _CAPTURED_MACRO_EVIDENCE.clear()
+    by_id = {item.id: item for item in evidence}
+    return [by_id[item_id] for item_id in sorted(by_id)]
+
+
+def _capture_macro_evidence(series_id: str, info: dict, points: list[tuple[str, str]]) -> None:
+    """Capture a FRED result without changing its markdown tool contract."""
+    try:
+        evidence = normalize_fred_series(series_id, info, points)
+    except (TypeError, ValueError):
+        return
+    with _CAPTURED_MACRO_EVIDENCE_LOCK:
+        _CAPTURED_MACRO_EVIDENCE.append(evidence)
+
+
 def get_macro_data(
     indicator: str,
     curr_date: str,
@@ -208,6 +267,7 @@ def get_macro_data(
             f"report less frequently than the window length; widen look_back_days."
         )
 
+    _capture_macro_evidence(series_id, info, points)
     first_date, first_val = points[0]
     last_date, last_val = points[-1]
     try:

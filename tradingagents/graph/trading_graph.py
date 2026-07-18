@@ -476,12 +476,17 @@ class TradingAgentsGraph:
         # deterministically resolved instrument identity for all agents.
         # yfinance's existing news tool still returns text to the agents; clear
         # its additive metadata capture so this run persists only its sources.
+        from tradingagents.dataflows.fred import (
+            clear_captured_macro_evidence,
+            consume_captured_macro_evidence,
+        )
         from tradingagents.dataflows.yfinance_news import (
             clear_captured_news_evidence,
             consume_captured_news_evidence,
         )
 
         clear_captured_news_evidence(company_name)
+        clear_captured_macro_evidence()
         past_context = self.memory_log.get_past_context(company_name)
         instrument_context = self.resolve_instrument_context(company_name, asset_type)
 
@@ -544,6 +549,7 @@ class TradingAgentsGraph:
         final_state["evidence"] = [
             *final_state.get("evidence", []),
             *(item.model_dump(mode="json") for item in consume_captured_news_evidence(company_name)),
+            *(item.model_dump(mode="json") for item in consume_captured_macro_evidence()),
         ]
 
         # Store current state for reflection.

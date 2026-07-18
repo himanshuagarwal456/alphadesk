@@ -198,7 +198,9 @@ results = run_book(ta, "2026-01-15", book, watchlist=["TSLA", "MSFT"], market_vi
 
 ### Portfolio-aware feed — "FinTok" (new)
 
-The idea: **use the agents to generate knowledge, visualize it, and disseminate it in a vertical feed.** Each completed run becomes a *narrative* — a horizontal album of chart cards that tells that name's story (`hook → evidence → tension → verdict`) — and narratives are stacked vertically, ranked by how much each one matters to *your* book (conviction × signal × portfolio weight).
+The idea: **use the agents to generate knowledge, visualize it, and disseminate it in a vertical feed.** Each completed run becomes a *narrative* — a horizontal album of chart cards that tells that name's story (`hook → evidence → tension → verdict`) — and narratives are stacked vertically by a transparent mix of conviction, portfolio relevance, source authority, and freshness.
+
+News and FRED macro observations are persisted as source-linked evidence snapshots beside each saved run. Their cards expose publisher, observation time, source link, and a bounded excerpt; AlphaDesk does not persist publisher-owned article bodies.
 
 The feed is a self-contained HTML page (CSS scroll-snap for the two-axis swipe, Plotly.js for interactive charts) — no server or build step. Install the extra and try the demo:
 
