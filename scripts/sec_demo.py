@@ -19,7 +19,12 @@ from tradingagents.ui.feed_cli import main as feed_main
 def main() -> None:
     load_dotenv()
     config = deepcopy(DEFAULT_CONFIG)
-    config["data_vendors"]["fundamental_data"] = "sec"
+    # SEC v1 supplies filing-backed fundamentals only. Keep the analyst's
+    # balance-sheet, cash-flow, and income-statement tools on yfinance.
+    config["tool_vendors"] = {
+        **config.get("tool_vendors", {}),
+        "get_fundamentals": "sec",
+    }
 
     desk = TradingAgentsGraph(
         selected_analysts=("fundamentals",),
