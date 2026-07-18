@@ -1,0 +1,20 @@
+{
+  "expect_pass": false,
+  "trade_date": "2026-01-15",
+  "final_rating": "Hold",
+  "portfolio_decision_struct": {
+    "rating": "Hold",
+    "executive_summary": "Wait for clarity.",
+    "investment_thesis": "Mixed signals."
+  },
+  "evidence_ids": ["ev_future"],
+  "evidence": [{"id": "ev_future", "published_at": "2026-03-01"}],
+  "claims": [
+    {
+      "text": "Filing on 2026-02-20 confirmed guidance.",
+      "evidence_ids": ["ev_future"],
+      "as_of": "2026-02-20"
+    }
+  ],
+  "risks": ["Guidance cut"]
+}

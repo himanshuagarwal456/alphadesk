@@ -1,0 +1,25 @@
+{
+  "expect_pass": true,
+  "trade_date": "2026-01-15",
+  "final_rating": "Buy",
+  "portfolio_decision_struct": {
+    "rating": "Buy",
+    "executive_summary": "Accumulate on dips into AI demand.",
+    "investment_thesis": "Data-center growth remains durable."
+  },
+  "evidence_ids": ["ev_a", "ev_b"],
+  "evidence": [
+    {"id": "ev_a", "published_at": "2026-01-10"},
+    {"id": "ev_b", "published_at": "2025-12-01"}
+  ],
+  "claims": [
+    {
+      "text": "Revenue grew to $10 billion in FY2025.",
+      "evidence_ids": ["ev_a"],
+      "as_of": "2026-01-10"
+    }
+  ],
+  "risks": ["Export controls"],
+  "require_risks": true,
+  "portfolio_context": {"held": false, "stance": "initiate"}
+}

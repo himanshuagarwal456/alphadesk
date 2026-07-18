@@ -20,11 +20,15 @@ This fork keeps the original multi-agent architecture intact and layers on capab
 |-----------|--------|---------|
 | **Portfolio-aware feed (FinTok)** | ✅ Shipped (v1) | Agents' knowledge rendered as a swipeable vertical feed of single-name narratives — chart cards arced *hook → evidence → tension → verdict* — ranked by how much each story matters to *your* book. `alphadesk-feed --demo`. |
 | **Parallel analyst execution** | ✅ Shipped | The four analysts run concurrently (isolated message channels, fan-out/fan-in) instead of a serial chain — bounded by the slowest analyst rather than their sum. |
-| **Portfolio ingestion & book model** | ✅ Shipped | Load an existing portfolio from a broker CSV export into a structured, exposure-aware book (`tradingagents/portfolio/`). |
-| **Deterministic portfolio store** | ✅ Shipped | JSON-backed, date-snapshotted persistence — a foundation for reproducible, replayable runs. |
-| **Portfolio-aware decisioning** | ✅ Shipped | Held names route to *manage/exit* and new candidates to *initiate*; the Portfolio Manager reasons about exposure, concentration, and cash. Run the whole book (holdings + watchlist) in one call. |
-| **Top-down Market View** | ✅ Shipped | A `MarketViewBuilder` synthesizes FRED macro series + global headlines into a regime + sizing bias, threaded into every name as a sizing lens (deterministic store included). |
-| **Position lifecycle** | 🗺️ Planned | Persistent per-name thesis with invalidation triggers; initiate → manage → exit. |
+| **Portfolio ingestion & book model** | ✅ Shipped | Load an existing portfolio from a broker CSV export into a structured, exposure-aware book (`tradingagents/portfolio/`). Product API: CSV preview/confirm, current book, thesis coverage. |
+| **Durable API + persistence** | ✅ Shipped | FastAPI `/v1` with SQLAlchemy + Alembic, workspace-scoped runs, evidence, theses, journal, portfolios, research. |
+| **Thesis + decision journal** | ✅ Shipped | Create theses from completed runs, propose/accept/reject revisions, snapshots/diffs, append-only journal with outcome reviews. |
+| **Private research** | ✅ Shipped | Upload md/txt/csv/pdf into a workspace; isolated search; private evidence excluded from public exports by default. |
+| **Persistent web app** | ✅ Shipped | Product UI at `/app` (Intelligence, Portfolio, Research, Workbench, Journal, Settings) talking to `/v1`. |
+| **Evaluation harness** | ✅ Shipped | Versioned securities dataset + offline contract checks + model/prompt metadata on runs (`alphadesk-evals`). |
+| **Portfolio-aware decisioning** | ✅ Shipped | Held names route to *manage/exit* and new candidates to *initiate*; the Portfolio Manager reasons about exposure, concentration, and cash. |
+| **Top-down Market View** | ✅ Shipped | A `MarketViewBuilder` synthesizes FRED macro series + global headlines into a regime + sizing bias. |
+| **Auth / monitoring / ops** | 🗺️ Next | Invite-only auth, material-change monitoring, and production hardening (see `docs/alpha-release.md`). |
 | **Options & backtest harness** | 🗺️ Planned | An options-strategy agent and a `backtrader`-driven replay clock. |
 
 See [Roadmap](#roadmap) for the full direction.
@@ -62,7 +66,7 @@ Built on **LangGraph** for modularity, with support for many LLM providers: Open
 
 ---
 
-## Installation
+## Fresh install (product stack)
 
 Requires **Python 3.10+** (3.12 recommended).
 
@@ -74,10 +78,55 @@ python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
 pip install --upgrade pip
-pip install .
+pip install -e ".[server,dev,ui]"
+
+cp .env.example .env             # add provider keys (needed for live research runs)
+```
+
+Apply database migrations (SQLite by default under `~/.tradingagents/`):
+
+```bash
+alembic upgrade head
+```
+
+Start the API + web app:
+
+```bash
+alphadesk-api
+# API:  http://127.0.0.1:8000/v1
+# App:  http://127.0.0.1:8000/app/
+# Docs: http://127.0.0.1:8000/docs
+```
+
+Optional environment overrides:
+
+```bash
+export ALPHADESK_DATABASE_URL="sqlite:///$HOME/.tradingagents/alphadesk.db"
+export ALPHADESK_OBJECT_STORE_DIR="$HOME/.tradingagents/object_store"
+export ALPHADESK_DEFAULT_WORKSPACE_ID="ws_local"
+export ALPHADESK_API_HOST="127.0.0.1"
+export ALPHADESK_API_PORT="8000"
+```
+
+For Postgres, set `ALPHADESK_DATABASE_URL` (or `DATABASE_URL`) to a `postgresql+psycopg://…` URL, then re-run `alembic upgrade head`.
+
+Smoke checks (no LLM keys required):
+
+```bash
+curl -s http://127.0.0.1:8000/health
+alphadesk-evals
+python -m pytest -q -m "not integration"
+ruff check .
 ```
 
 > **Note:** the system Python on macOS (Command Line Tools) is often 3.9 and will fail dependency resolution. Use a 3.10+ interpreter (`python3.12`, Homebrew, `pyenv`, or `conda`).
+
+### Minimal install (CLI / library only)
+
+```bash
+pip install .
+# or: pip install -e ".[dev]"
+```
 
 ### Docker
 
@@ -108,15 +157,23 @@ ALPHA_VANTAGE_API_KEY=...   # optional: alternate market/news/fundamentals vendo
 
 Any `TRADINGAGENTS_*` variable overrides the matching key in `tradingagents/default_config.py` without editing code — e.g. `TRADINGAGENTS_LLM_PROVIDER`, `TRADINGAGENTS_DEEP_THINK_LLM`, `TRADINGAGENTS_MAX_DEBATE_ROUNDS`.
 
+Until auth lands (Phase 4), the API selects a tenant with the `X-Workspace-Id` header (default `ws_local`).
+
 ---
 
 ## Usage
+
+### Web app + API
+
+With `alphadesk-api` running, open `http://127.0.0.1:8000/app/`. Core journeys (portfolio import, private research uploads, thesis creation from a run, journal) use the durable `/v1` surface and do not require the CLI.
 
 ### CLI
 
 ```bash
 alphadesk                # interactive: pick ticker, date, models, depth
 tradingagents            # back-compat alias for the same CLI
+alphadesk-portfolio      # CSV preview / confirm into the product store
+alphadesk-evals          # offline evaluation contracts + dataset inventory
 python -m cli.main       # equivalent, from source
 ```
 
@@ -251,7 +308,11 @@ flowchart TB
 - [x] Run the whole book at once (holdings + candidate watchlist)
 - [x] Automated top-down Market View builder (macro narrative as a sizing lens)
 - [x] Persistent per-name thesis snapshots with evidence links and confidence history (enable with `TRADINGAGENTS_THESIS_PERSIST_ENABLED=true`)
-- [ ] Thesis catalysts, invalidation-trigger monitoring, and user-facing thesis diffs
+- [x] Thesis propose/accept/reject workflow, snapshots/diffs, decision journal
+- [x] Private research uploads with workspace isolation
+- [x] Persistent web app (`/app`) on the FastAPI server
+- [x] Offline evaluation harness + model/prompt metadata on runs
+- [ ] Auth, material-change monitoring, and production ops hardening
 - [ ] Options-strategy agent
 - [ ] `backtrader` replay/backtest harness
 
@@ -273,9 +334,11 @@ LLM output is non-deterministic, and live data (news, social) moves over time, s
 ## Development
 
 ```bash
-pip install ".[dev]"
-python -m pytest -q -m "not integration"   # unit + structure tests
+pip install -e ".[server,dev,ui]"
+alembic upgrade head
+python -m pytest -q -m "not integration"   # unit + API + evals
 ruff check .
+alphadesk-evals
 ```
 
 ---

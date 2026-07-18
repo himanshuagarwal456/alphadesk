@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AlphaDesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/app/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" aria-label="Primary">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <div class="brand-name">AlphaDesk</div>
+          <div class="brand-sub">Research workspace</div>
+        </div>
+      </div>
+      <nav class="nav" id="nav">
+        <button type="button" data-view="intelligence" class="active">Intelligence</button>
+        <button type="button" data-view="portfolio">Portfolio</button>
+        <button type="button" data-view="research">Research</button>
+        <button type="button" data-view="workbench">Workbench</button>
+        <button type="button" data-view="journal">Journal</button>
+        <button type="button" data-view="settings">Settings</button>
+      </nav>
+      <div class="rail-foot">
+        <label for="workspace">Workspace</label>
+        <input id="workspace" name="workspace" autocomplete="off" />
+        <p class="hint">Sent as <code>X-Workspace-Id</code> until auth lands.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="top">
+        <div>
+          <h1 id="view-title">Intelligence</h1>
+          <p id="view-sub" class="lede">Material changes and saved intelligence cards.</p>
+        </div>
+        <div class="top-actions">
+          <span id="status" class="status" role="status"></span>
+          <button type="button" id="refresh" class="btn">Refresh</button>
+        </div>
+      </header>
+
+      <section id="view-intelligence" class="view active"></section>
+      <section id="view-portfolio" class="view" hidden></section>
+      <section id="view-research" class="view" hidden></section>
+      <section id="view-workbench" class="view" hidden></section>
+      <section id="view-journal" class="view" hidden></section>
+      <section id="view-settings" class="view" hidden></section>
+    </main>
+  </div>
+  <script src="/app/app.js"></script>
+</body>
+</html>

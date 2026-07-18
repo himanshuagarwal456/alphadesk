@@ -1,0 +1,19 @@
+{
+  "expect_pass": false,
+  "trade_date": "2026-01-15",
+  "final_rating": "Buy",
+  "portfolio_decision_struct": {
+    "rating": "Buy",
+    "executive_summary": "Strong print.",
+    "investment_thesis": "Margins expand."
+  },
+  "evidence_ids": ["ev_ok"],
+  "evidence": [{"id": "ev_ok", "published_at": "2026-01-01"}],
+  "claims": [
+    {
+      "text": "Operating margin hit 42% and EPS was $3.25.",
+      "evidence_ids": []
+    }
+  ],
+  "risks": ["Competition"]
+}

@@ -10,6 +10,7 @@ from . import (
     evidence,
     journal,
     portfolios,
+    research,
     runs,
     theses,
     watchlists,
@@ -26,3 +27,4 @@ api_router.include_router(journal.router, tags=["journal"])
 api_router.include_router(portfolios.router, tags=["portfolios"])
 api_router.include_router(watchlists.router, tags=["watchlists"])
 api_router.include_router(cards.router, tags=["cards"])
+api_router.include_router(research.router, tags=["research"])

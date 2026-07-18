@@ -5,6 +5,7 @@ from .events import RunEventRepository
 from .evidence import EvidenceRepository
 from .journal import JournalRepository
 from .portfolios import PortfolioRepository
+from .research import PrivateDocumentRepository
 from .runs import AnalysisRunRepository
 from .state import PortfolioStateRepository, WatchlistRepository
 from .theses import ThesisRepository
@@ -17,6 +18,7 @@ __all__ = [
     "JournalRepository",
     "PortfolioRepository",
     "PortfolioStateRepository",
+    "PrivateDocumentRepository",
     "RunEventRepository",
     "ThesisRepository",
     "WatchlistRepository",

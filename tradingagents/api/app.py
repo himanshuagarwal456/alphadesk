@@ -23,10 +23,14 @@ def create_app(
     """Build the FastAPI app. Imported lazily so core installs stay lean."""
     try:
         from fastapi import FastAPI
+        from fastapi.responses import RedirectResponse
+        from fastapi.staticfiles import StaticFiles
     except ImportError as exc:  # pragma: no cover
         raise ImportError(
             'AlphaDesk API requires the server extra: pip install "alphadesk[server]"'
         ) from exc
+
+    from tradingagents.web import STATIC_DIR
 
     from .deps import AppState
     from .v1.router import api_router
@@ -39,7 +43,7 @@ def create_app(
 
     application = FastAPI(
         title=settings.api_title,
-        version="0.4.0",
+        version="0.10.0",
         description="AlphaDesk research and intelligence API (v1).",
     )
     application.state.alphadesk = AppState(
@@ -51,6 +55,17 @@ def create_app(
     @application.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "alphadesk"}
+
+    @application.get("/")
+    def root_redirect():
+        return RedirectResponse(url="/app/")
+
+    if STATIC_DIR.is_dir():
+        application.mount(
+            "/app",
+            StaticFiles(directory=str(STATIC_DIR), html=True),
+            name="alphadesk-web",
+        )
 
     return application
 

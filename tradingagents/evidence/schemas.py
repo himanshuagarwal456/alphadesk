@@ -22,7 +22,11 @@ class Evidence(BaseModel):
         description="Stable content-derived ID. Generated when omitted.",
     )
     provider_id: str = Field(description="Connector that retrieved this source, e.g. yfinance.")
-    source_type: Literal["news", "macro", "filing"] = "news"
+    source_type: Literal["news", "macro", "filing", "document"] = "news"
+    workspace_id: str | None = Field(
+        default=None,
+        description="Owning workspace for private documents; None = shared/public.",
+    )
     title: str = Field(min_length=1)
     source_url: HttpUrl | None = None
     publisher: str | None = None

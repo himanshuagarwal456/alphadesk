@@ -214,6 +214,28 @@ class ObjectArtifactRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class PrivateDocumentRow(Base):
+    __tablename__ = "private_documents"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_private_documents_workspace_id"),
+        Index("ix_private_documents_hash", "workspace_id", "content_hash"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    deleted: Mapped[str] = mapped_column(String(8), nullable=False, default="false")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
 class ThesisProposalRow(Base):
     __tablename__ = "thesis_proposals"
     __table_args__ = (

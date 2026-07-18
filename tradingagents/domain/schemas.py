@@ -139,6 +139,12 @@ class AnalysisRun(BaseModel):
     bull_case: str = ""
     bear_case: str = ""
     risks: list[str] = Field(default_factory=list)
+    # Model / prompt governance (Phase 10) — recorded on every durable run.
+    model_provider: str | None = None
+    deep_think_llm: str | None = None
+    quick_think_llm: str | None = None
+    prompt_version: str | None = None
+    eval_suite_version: str | None = None
     error: str | None = None
     workspace_id: str | None = None
     started_at: datetime | None = None

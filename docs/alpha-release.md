@@ -763,6 +763,10 @@ Each fact retains:
 
 ## Phase 7 — User-Owned Research
 
+> **Status (2026-07-18):** Shipped — private document upload (md/txt/csv/pdf),
+> workspace isolation, soft-delete, full-text search, private Evidence records,
+> and public-export filtering via `/v1/research/*`.
+
 **Goal:** Allow users to incorporate information AlphaDesk does not possess publicly.
 
 ### Deliverables
@@ -855,6 +859,11 @@ Create Intelligence Card
 
 ## Phase 9 — Persistent Web Experience
 
+> **Status (2026-07-18):** Shipped — persistent web app served at `/app` from
+> `alphadesk-api`, covering Intelligence, Portfolio, Research, Workbench,
+> Journal, and Settings against the durable `/v1` API (no CLI required for
+> core journeys). FinTok HTML feed remains a compatibility projection.
+
 **Goal:** Replace the generated HTML proof of concept with a product-quality application.
 
 ### Deliverables
@@ -891,6 +900,11 @@ Create Intelligence Card
 ---
 
 ## Phase 10 — Quality, Evaluation, and Model Governance
+
+> **Status (2026-07-18):** Shipped — versioned `evals-v1` securities dataset
+> (32 names), offline contract checks (look-ahead, citations, rating
+> consistency, portfolio awareness), model/prompt metadata on `AnalysisRun`,
+> and `alphadesk-evals` CLI (no live LLM keys required).
 
 **Goal:** Make AI quality measurable before real users depend on it.
 
