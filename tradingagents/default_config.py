@@ -17,6 +17,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
     "TRADINGAGENTS_THESIS_PERSIST_ENABLED": "thesis_persist_enabled",
+    "TRADINGAGENTS_JOURNAL_ENABLED": "journal_enabled",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
@@ -76,6 +77,8 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "memory_log_path": os.getenv("TRADINGAGENTS_MEMORY_LOG_PATH", os.path.join(_TRADINGAGENTS_HOME, "memory", "trading_memory.md")),
     "thesis_store_dir": os.getenv("TRADINGAGENTS_THESIS_STORE_DIR", os.path.join(_TRADINGAGENTS_HOME, "thesis")),
     "thesis_persist_enabled": False,
+    "journal_store_dir": os.getenv("TRADINGAGENTS_JOURNAL_STORE_DIR", os.path.join(_TRADINGAGENTS_HOME, "journal")),
+    "journal_enabled": False,
     # Optional cap on the number of resolved memory log entries. When set,
     # the oldest resolved entries are pruned once this limit is exceeded.
     # Pending entries are never pruned. None disables rotation entirely.

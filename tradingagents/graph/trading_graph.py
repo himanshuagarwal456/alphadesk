@@ -34,6 +34,7 @@ from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.evidence import Evidence, EvidenceStore
+from tradingagents.journal import DecisionJournalEntry, DecisionJournalStore, DecisionType
 from tradingagents.llm_clients import create_llm_client
 from tradingagents.portfolio.context import classify_stance, render_portfolio_context
 from tradingagents.reporting import write_report_tree
@@ -555,6 +556,7 @@ class TradingAgentsGraph:
             *(item.model_dump(mode="json") for item in consume_captured_macro_evidence()),
         ]
         self._persist_living_thesis(company_name, str(trade_date), final_state)
+        self._persist_decision_journal(company_name, str(trade_date), final_state)
 
         # Store current state for reflection.
         self.curr_state = final_state
@@ -600,10 +602,41 @@ class TradingAgentsGraph:
                 decision=decision,
                 evidence_ids=[item for item in evidence_ids if item],
                 prior=prior,
+                catalysts=decision.catalysts,
+                invalidation_conditions=decision.invalidation_conditions,
+                invalidation_triggered=decision.invalidation_triggered,
             )
             store.upsert_run(thesis, snapshot)
         except (OSError, TypeError, ValueError) as exc:
             logger.warning("Could not persist living thesis for %s: %s", ticker, exc)
+
+    def _persist_decision_journal(self, ticker: str, trade_date: str, final_state: dict) -> None:
+        if not self.config.get("journal_enabled"):
+            return
+        decision = final_state.get("portfolio_decision_struct") or {}
+        rating = decision.get("rating", "Hold")
+        decision_type = {
+            "Buy": DecisionType.ADD if final_state.get("position_stance") == "manage" else DecisionType.OPEN,
+            "Overweight": DecisionType.ADD,
+            "Underweight": DecisionType.TRIM,
+            "Sell": DecisionType.CLOSE,
+        }.get(rating, DecisionType.HOLD)
+        evidence_ids = [
+            item.get("id") if isinstance(item, dict) else item.id
+            for item in final_state.get("evidence", [])
+        ]
+        thesis_id = None
+        if self.config.get("thesis_persist_enabled"):
+            thesis = LivingThesisStore(self.config["thesis_store_dir"]).load(ticker)
+            thesis_id = thesis.current_snapshot_id if thesis else None
+        DecisionJournalStore(self.config["journal_store_dir"]).append(DecisionJournalEntry(
+            symbol=ticker,
+            trade_date=trade_date,
+            decision_type=decision_type,
+            rationale=decision.get("executive_summary") or final_state["final_trade_decision"],
+            thesis_snapshot_id=thesis_id,
+            evidence_ids=[item for item in evidence_ids if item],
+        ))
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""
