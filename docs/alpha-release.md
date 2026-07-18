@@ -725,6 +725,11 @@ Each fact retains:
 
 ## Phase 6 — Living Thesis and Decision Journal
 
+> **Status:** Backend product surface landed on `main` (create-from-run as
+> proposal, accept/edit/reject, revision diff, evidence selection, journal
+> linked to thesis/portfolio snapshots, outcome review with benchmark-relative
+> returns, lesson-reuse flag). Workbench UI remains Phase 9.
+
 **Goal:** Deliver AlphaDesk’s core differentiating workflow.
 
 ### Deliverables

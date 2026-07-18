@@ -10,6 +10,7 @@ from .schemas import (
     ThesisStatus,
     build_thesis_update,
 )
+from .service import ThesisWorkflowService
 from .store import LivingThesisStore
 from .triggers import ThesisTrigger, apply_invalidation_status, evaluate_triggers
 from .workflow import (
@@ -37,6 +38,7 @@ __all__ = [
     "evaluate_triggers",
     "ProposedRevision",
     "RevisionStatus",
+    "ThesisWorkflowService",
     "create_thesis_from_run",
     "propose_revision",
     "review_revision",

@@ -40,12 +40,18 @@ class ThesisSnapshot(BaseModel):
     rating: PortfolioRating
     executive_summary: str
     investment_thesis: str
+    bull_case: str = ""
+    bear_case: str = ""
+    risks: list[str] = Field(default_factory=list)
     price_target: float | None = None
     time_horizon: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
     evidence_ids: list[str] = Field(default_factory=list)
     catalysts: list[Catalyst] = Field(default_factory=list)
     invalidation_conditions: list[InvalidationCondition] = Field(default_factory=list)
     status: ThesisStatus = ThesisStatus.ACTIVE
+    author: str = Field(default="ai", description="'ai' or 'user'.")
+    analysis_run_id: str | None = None
     prior_snapshot_id: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -72,6 +78,12 @@ def build_thesis_update(
     catalysts: list[str] | None = None,
     invalidation_conditions: list[str] | None = None,
     invalidation_triggered: bool = False,
+    bull_case: str = "",
+    bear_case: str = "",
+    risks: list[str] | None = None,
+    confidence: float | None = None,
+    author: str = "ai",
+    analysis_run_id: str | None = None,
 ) -> tuple[ThesisSnapshot, LivingThesis]:
     """Build a dated revision and update the per-symbol thesis head."""
     normalized_symbol = symbol.strip().upper()
@@ -86,8 +98,12 @@ def build_thesis_update(
         rating=decision.rating,
         executive_summary=decision.executive_summary,
         investment_thesis=decision.investment_thesis,
+        bull_case=bull_case,
+        bear_case=bear_case,
+        risks=list(risks or []),
         price_target=decision.price_target,
         time_horizon=decision.time_horizon,
+        confidence=confidence,
         evidence_ids=sorted(set(evidence_ids)),
         catalysts=[Catalyst(description=item) for item in catalysts or []],
         invalidation_conditions=[
@@ -95,6 +111,8 @@ def build_thesis_update(
             for item in invalidation_conditions or []
         ],
         status=status,
+        author=author,
+        analysis_run_id=analysis_run_id,
         prior_snapshot_id=prior.current_snapshot_id if prior else None,
     )
     point = ConfidencePoint(as_of=trade_date, rating=decision.rating)

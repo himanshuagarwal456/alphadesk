@@ -214,6 +214,44 @@ class ObjectArtifactRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class ThesisProposalRow(Base):
+    __tablename__ = "thesis_proposals"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_thesis_proposals_workspace_id"),
+        Index("ix_thesis_proposals_symbol_status", "workspace_id", "symbol", "status"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="proposed")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class OutcomeReviewRow(Base):
+    __tablename__ = "outcome_reviews"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_outcome_reviews_workspace_id"),
+        Index("ix_outcome_reviews_entry", "workspace_id", "journal_entry_id"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    journal_entry_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class WorkspacePortfolioStateRow(Base):
     """Per-workspace pointer to the active book and product controls."""
 

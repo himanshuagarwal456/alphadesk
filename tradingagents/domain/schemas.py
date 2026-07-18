@@ -132,6 +132,13 @@ class AnalysisRun(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     final_rating: str | None = None
     thesis_snapshot_id: str | None = None
+    # Structured / rendered decision retained so theses can be created from a
+    # completed run without re-invoking the graph (Phase 6).
+    portfolio_decision_struct: dict | None = None
+    final_trade_decision: str | None = None
+    bull_case: str = ""
+    bear_case: str = ""
+    risks: list[str] = Field(default_factory=list)
     error: str | None = None
     workspace_id: str | None = None
     started_at: datetime | None = None
