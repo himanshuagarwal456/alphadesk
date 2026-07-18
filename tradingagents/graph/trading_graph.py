@@ -4,7 +4,7 @@ import copy
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,9 +31,11 @@ from tradingagents.agents.utils.agent_utils import (
     resolve_instrument_identity,
 )
 from tradingagents.agents.utils.memory import TradingMemoryLog
+from tradingagents.agents.utils.rating import parse_rating
 from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.domain import AnalysisRun, AnalysisRunStore, RunStatus
 from tradingagents.evidence import Evidence, EvidenceStore
 from tradingagents.journal import DecisionJournalEntry, DecisionJournalStore, DecisionType
 from tradingagents.llm_clients import create_llm_client
@@ -699,6 +701,15 @@ class TradingAgentsGraph:
         with open(log_path, "w", encoding="utf-8") as f:
             json.dump(self.log_states_dict[str(trade_date)], f, indent=4)
         EvidenceStore(directory).save_snapshot(str(trade_date), evidence)
+        AnalysisRunStore(directory).save(AnalysisRun(
+            symbol=final_state["company_of_interest"],
+            trade_date=str(trade_date),
+            status=RunStatus.COMPLETED,
+            selected_analysts=list(getattr(self, "selected_analysts", ())),
+            evidence_ids=[item.id for item in evidence],
+            final_rating=parse_rating(final_state["final_trade_decision"]),
+            completed_at=datetime.now(timezone.utc),
+        ))
 
     def process_signal(self, full_signal):
         """Process a signal to extract the core decision."""

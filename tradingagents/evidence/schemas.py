@@ -43,6 +43,10 @@ class Evidence(BaseModel):
         le=1,
         description="Provider-authority score assigned by the normalizer.",
     )
+    ownership: Literal["public", "private", "licensed"] = Field(
+        default="public",
+        description="Visibility class; propagates to any content derived from this record.",
+    )
     schema_version: Literal[1] = 1
 
     @model_validator(mode="after")

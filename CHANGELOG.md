@@ -14,6 +14,10 @@ remains `tradingagents` for backward compatibility.
 
 ### Added
 
+- **Canonical domain foundation (alpha PR 2).** `tradingagents/domain/` adds
+  `Instrument`, `SourceRecord` (with public/private/licensed ownership),
+  `Claim` (evidence-traceable assertions), and a durable `AnalysisRun` record
+  persisted beside each saved run. `Evidence` gains an `ownership` class.
 - **Thesis-change monitoring.** Consecutive thesis snapshots now produce
   deterministic rating/evidence diffs and downgrade/upgrade triggers. The feed
   renders materiality-scored thesis-change cards for persisted revisions.
