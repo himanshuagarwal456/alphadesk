@@ -221,6 +221,18 @@ class PortfolioDecision(BaseModel):
         default=None,
         description="Optional recommended holding period, e.g. '3-6 months'.",
     )
+    catalysts: list[str] = Field(
+        default_factory=list,
+        description="Specific upcoming events that could strengthen the thesis.",
+    )
+    invalidation_conditions: list[str] = Field(
+        default_factory=list,
+        description="Observable conditions that would invalidate the thesis.",
+    )
+    invalidation_triggered: bool = Field(
+        default=False,
+        description="True only when current evidence has already invalidated the thesis.",
+    )
 
     @field_validator("price_target", mode="before")
     @classmethod
@@ -247,6 +259,16 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
         parts.extend(["", f"**Price Target**: {decision.price_target}"])
     if decision.time_horizon:
         parts.extend(["", f"**Time Horizon**: {decision.time_horizon}"])
+    if decision.catalysts:
+        parts.extend(["", "**Catalysts**:", *[f"- {item}" for item in decision.catalysts]])
+    if decision.invalidation_conditions:
+        parts.extend([
+            "",
+            "**Invalidation Conditions**:",
+            *[f"- {item}" for item in decision.invalidation_conditions],
+        ])
+    if decision.invalidation_triggered:
+        parts.extend(["", "**Invalidation Triggered**: Yes"])
     return "\n".join(parts)
 
 

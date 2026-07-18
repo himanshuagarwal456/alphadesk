@@ -69,10 +69,15 @@ def build_thesis_update(
     decision: PortfolioDecision,
     evidence_ids: list[str],
     prior: LivingThesis | None,
+    catalysts: list[str] | None = None,
+    invalidation_conditions: list[str] | None = None,
+    invalidation_triggered: bool = False,
 ) -> tuple[ThesisSnapshot, LivingThesis]:
     """Build a dated revision and update the per-symbol thesis head."""
     normalized_symbol = symbol.strip().upper()
     status = _status_for(decision.rating, stance, prior)
+    if invalidation_triggered and status is not ThesisStatus.CLOSED:
+        status = ThesisStatus.INVALIDATED
     snapshot = ThesisSnapshot(
         snapshot_id=f"th_{normalized_symbol}_{trade_date}",
         symbol=normalized_symbol,
@@ -84,6 +89,11 @@ def build_thesis_update(
         price_target=decision.price_target,
         time_horizon=decision.time_horizon,
         evidence_ids=sorted(set(evidence_ids)),
+        catalysts=[Catalyst(description=item) for item in catalysts or []],
+        invalidation_conditions=[
+            InvalidationCondition(description=item, triggered=invalidation_triggered)
+            for item in invalidation_conditions or []
+        ],
         status=status,
         prior_snapshot_id=prior.current_snapshot_id if prior else None,
     )
