@@ -14,6 +14,9 @@ remains `tradingagents` for backward compatibility.
 
 ### Added
 
+- **Thesis-change monitoring.** Consecutive thesis snapshots now produce
+  deterministic rating/evidence diffs and downgrade/upgrade triggers. The feed
+  renders materiality-scored thesis-change cards for persisted revisions.
 - **Living thesis persistence (v1).** `tradingagents/thesis/` stores a
   per-symbol current thesis plus immutable dated revisions. Structured Portfolio
   Manager decisions retain rating, thesis, target, horizon, evidence IDs, and a
