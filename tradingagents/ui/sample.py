@@ -10,6 +10,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from tradingagents.evidence import Evidence
+
 from .deck_builder import build_feed
 from .feed_schema import Feed
 
@@ -39,7 +41,7 @@ def sample_final_state(
     stop: float = 132.0,
 ) -> dict:
     """A canned run state shaped like a real ``final_state``."""
-    return {
+    state = {
         "company_of_interest": symbol,
         "trade_date": "2026-01-15",
         "market_report": (
@@ -86,6 +88,17 @@ def sample_final_state(
             f"**Price Target**: {target:.0f}\n\n**Time Horizon**: 1-3 months"
         ),
     }
+    state["evidence"] = [
+        Evidence(
+            provider_id="yfinance",
+            title=f"{symbol} sector outlook",
+            source_url=f"https://finance.yahoo.com/quote/{symbol}/news/",
+            publisher="Yahoo Finance",
+            published_at="2026-01-14T15:00:00Z",
+            summary="A deterministic sample source used only by the feed demo.",
+        ).model_dump(mode="json")
+    ]
+    return state
 
 
 def sample_feed() -> Feed:

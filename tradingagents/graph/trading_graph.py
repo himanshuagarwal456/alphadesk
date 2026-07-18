@@ -31,6 +31,7 @@ from tradingagents.agents.utils.memory import TradingMemoryLog
 from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.evidence import Evidence, EvidenceStore
 from tradingagents.llm_clients import create_llm_client
 from tradingagents.portfolio.context import classify_stance, render_portfolio_context
 from tradingagents.reporting import write_report_tree
@@ -473,6 +474,14 @@ class TradingAgentsGraph:
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM and the
         # deterministically resolved instrument identity for all agents.
+        # yfinance's existing news tool still returns text to the agents; clear
+        # its additive metadata capture so this run persists only its sources.
+        from tradingagents.dataflows.yfinance_news import (
+            clear_captured_news_evidence,
+            consume_captured_news_evidence,
+        )
+
+        clear_captured_news_evidence(company_name)
         past_context = self.memory_log.get_past_context(company_name)
         instrument_context = self.resolve_instrument_context(company_name, asset_type)
 
@@ -528,6 +537,15 @@ class TradingAgentsGraph:
         else:
             final_state = self.graph.invoke(init_agent_state, **args)
 
+        # Keep the graph's text-tool contract unchanged while preserving the
+        # structured article metadata fetched by the yfinance news provider.
+        # Other providers can populate ``evidence`` directly as they gain
+        # normalizers; merge by stable evidence ID at persistence time.
+        final_state["evidence"] = [
+            *final_state.get("evidence", []),
+            *(item.model_dump(mode="json") for item in consume_captured_news_evidence(company_name)),
+        ]
+
         # Store current state for reflection.
         self.curr_state = final_state
 
@@ -552,6 +570,15 @@ class TradingAgentsGraph:
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""
+        evidence = []
+        for item in final_state.get("evidence", []):
+            try:
+                evidence.append(item if isinstance(item, Evidence) else Evidence.model_validate(item))
+            except (TypeError, ValueError):
+                logger.warning("Skipping invalid evidence record while logging %s", trade_date)
+        by_id = {item.id: item for item in evidence}
+        evidence = [by_id[item_id] for item_id in sorted(by_id)]
+
         self.log_states_dict[str(trade_date)] = {
             "company_of_interest": final_state["company_of_interest"],
             "trade_date": final_state["trade_date"],
@@ -580,6 +607,7 @@ class TradingAgentsGraph:
             },
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
+            "evidence_ids": [item.id for item in evidence],
         }
 
         # Save to file. Reject ticker values that would escape the
@@ -591,6 +619,7 @@ class TradingAgentsGraph:
         log_path = directory / f"full_states_log_{trade_date}.json"
         with open(log_path, "w", encoding="utf-8") as f:
             json.dump(self.log_states_dict[str(trade_date)], f, indent=4)
+        EvidenceStore(directory).save_snapshot(str(trade_date), evidence)
 
     def process_signal(self, full_signal):
         """Process a signal to extract the core decision."""

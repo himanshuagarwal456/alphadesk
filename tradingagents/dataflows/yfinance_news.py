@@ -1,14 +1,20 @@
 """yfinance-based news data fetching functions."""
 
 import contextlib
+import threading
 from datetime import datetime
 
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
+from tradingagents.evidence import Evidence
+
 from .config import get_config
 from .stockstats_utils import yf_retry
 from .symbol_utils import normalize_symbol
+
+_CAPTURED_NEWS: dict[str, list[Evidence]] = {}
+_CAPTURED_NEWS_LOCK = threading.Lock()
 
 
 def _extract_article_data(article: dict) -> dict:
@@ -55,6 +61,47 @@ def _extract_article_data(article: dict) -> dict:
             "link": article.get("link", ""),
             "pub_date": pub_date,
         }
+
+
+def normalize_news_article(article: dict) -> Evidence:
+    """Normalize yfinance article metadata into a source-linked Evidence record.
+
+    The record contains metadata plus a bounded excerpt only. It intentionally
+    never retains a publisher-owned article body.
+    """
+    data = _extract_article_data(article)
+    return Evidence(
+        provider_id="yfinance",
+        title=str(data["title"]).strip() or "Untitled article",
+        source_url=data["link"] or None,
+        publisher=data["publisher"] or None,
+        published_at=data["pub_date"],
+        summary=str(data["summary"] or "")[:2_000],
+    )
+
+
+def clear_captured_news_evidence(ticker: str) -> None:
+    """Discard in-process yfinance evidence captured for a new graph run."""
+    with _CAPTURED_NEWS_LOCK:
+        _CAPTURED_NEWS.pop(ticker.upper(), None)
+
+
+def consume_captured_news_evidence(ticker: str) -> list[Evidence]:
+    """Return and clear yfinance evidence captured during this graph run."""
+    with _CAPTURED_NEWS_LOCK:
+        evidence = _CAPTURED_NEWS.pop(ticker.upper(), [])
+    by_id = {item.id: item for item in evidence}
+    return [by_id[item_id] for item_id in sorted(by_id)]
+
+
+def _capture_evidence(ticker: str, article: dict) -> None:
+    """Record yfinance news metadata without altering the existing text API."""
+    try:
+        evidence = normalize_news_article(article)
+    except (TypeError, ValueError):
+        return
+    with _CAPTURED_NEWS_LOCK:
+        _CAPTURED_NEWS.setdefault(ticker.upper(), []).append(evidence)
 
 
 def _in_news_window(pub_date, start_dt, end_dt) -> bool:
@@ -114,6 +161,7 @@ def get_news_yfinance(
             if not _in_news_window(data["pub_date"], start_dt, end_dt):
                 continue
 
+            _capture_evidence(ticker, article)
             news_str += f"### {data['title']} (source: {data['publisher']})\n"
             if data["summary"]:
                 news_str += f"{data['summary']}\n"

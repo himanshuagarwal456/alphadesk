@@ -22,8 +22,13 @@ from typing import Any
 
 import plotly.graph_objects as go
 
+from tradingagents.evidence import Evidence
+
 from . import charts
+from .chart_selector import select_chart_spec
+from .chart_validator import validate_chart_spec
 from .feed_schema import Card, CardKind, Feed, Narrative
+from .visualization_intent import AnalyticalQuestion, VisualizationIntent
 
 _RATING_VALUE = {"sell": 0, "underweight": 1, "hold": 2, "overweight": 3, "buy": 4}
 
@@ -134,6 +139,8 @@ def build_narrative(
         if weight is not None:
             badges.append(f"{weight * 100:.0f}% of book")
         badges.append("Held")
+    portfolio_impact = _portfolio_impact(held, weight)
+    evidence = _coerce_evidence(final_state.get("evidence", []))
 
     cards: list[Card] = []
 
@@ -145,13 +152,28 @@ def build_narrative(
         levels.append({"label": f"Stop {stop:g}", "value": stop, "color": "#d62728"})
     hook_headline = _verdict_hook(symbol, rating, verdict_md, held, weight)
     hook_chart = None
+    hook_intent = None
+    hook_spec = None
     if ohlcv is not None:
-        hook_chart = _fig_to_dict(
-            charts.price_chart(ohlcv, title=f"{symbol} — {trade_date}", levels=levels)
+        hook_intent = VisualizationIntent(
+            analytical_question=AnalyticalQuestion.TREND,
+            entities=[symbol],
+            metrics=["price"],
+            time_window=trade_date or None,
+            explanation="Show price trend and decision levels.",
         )
+        hook_spec = select_chart_spec(hook_intent, units="price")
+        validation = validate_chart_spec(hook_spec, hook_intent, ohlcv)
+        hook_spec.validated = validation.valid
+        if validation.valid:
+            hook_chart = _fig_to_dict(
+                charts.price_chart(ohlcv, title=f"{symbol} — {trade_date}", levels=levels)
+            )
     cards.append(Card(
         id=f"{symbol}-hook", kind=CardKind.HOOK, title=symbol,
         headline=hook_headline, badges=badges, chart=hook_chart,
+        card_type="portfolio_impact", portfolio_impact=portfolio_impact,
+        visualization_intent=hook_intent, chart_spec=hook_spec,
     ))
 
     # --- EVIDENCE: market / technical ---
@@ -191,7 +213,9 @@ def build_narrative(
         cards.append(Card(
             id=f"{symbol}-news", kind=CardKind.EVIDENCE, title="News",
             headline=_first_sentence(final_state["news_report"]),
-            body=final_state["news_report"],
+            body=final_state["news_report"], card_type="event",
+            evidence_ids=[item.id for item in evidence],
+            evidence=evidence, portfolio_impact=portfolio_impact,
         ))
 
     # --- TENSION: bull vs bear, framed as a risk/reward band when priced ---
@@ -199,7 +223,7 @@ def build_narrative(
     if debate.get("bull_history") or debate.get("bear_history"):
         chart = None
         if ohlcv is not None and (target is not None or stop is not None):
-            entry = float(charts._col(ohlcv, "close").iloc[-1])
+            entry = float(charts.close_series(ohlcv).iloc[-1])
             chart = _fig_to_dict(
                 charts.scenario_bands(ohlcv, entry=entry, target=target, stop=stop,
                                       title="Risk / reward")
@@ -221,6 +245,7 @@ def build_narrative(
             id=f"{symbol}-verdict", kind=CardKind.VERDICT, title="Verdict",
             headline=hook_headline, body=verdict_md, badges=badges,
             chart=_fig_to_dict(charts.rating_dial(rating or "Hold")),
+            card_type="portfolio_impact", portfolio_impact=portfolio_impact,
         ))
 
     dominance = compute_dominance(
@@ -247,6 +272,27 @@ def _verdict_hook(symbol, rating, verdict_md, held, weight) -> str:
     if held and weight is not None:
         base = f"{base}  (you hold {weight * 100:.0f}% of book here)"
     return base[:220]
+
+
+def _portfolio_impact(held: bool, weight: float | None) -> str:
+    """Explain what the card means for the current book, even when unheld."""
+    if held and weight is not None:
+        return f"Held position: {weight * 100:.1f}% of portfolio; review sizing and thesis."
+    if held:
+        return "Held position: review sizing and thesis."
+    return "Watchlist candidate: no current portfolio exposure."
+
+
+def _coerce_evidence(items: list[Any]) -> list[Evidence]:
+    """Accept persisted JSON or model instances while ignoring malformed records."""
+    evidence = []
+    for item in items:
+        try:
+            evidence.append(item if isinstance(item, Evidence) else Evidence.model_validate(item))
+        except (TypeError, ValueError):
+            continue
+    by_id = {item.id: item for item in evidence}
+    return [by_id[item_id] for item_id in sorted(by_id)]
 
 
 def _strip_rating_line(text: str) -> str:

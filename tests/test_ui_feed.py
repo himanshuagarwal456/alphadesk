@@ -87,6 +87,11 @@ def test_build_narrative_arc_and_framing():
     assert nrv.meta["held"] is True and nrv.meta["stance"] == "manage"
     # hook card carries a chart (price with thesis levels)
     assert nrv.cards[0].chart is not None
+    assert nrv.cards[0].chart_spec is not None
+    assert nrv.cards[0].chart_spec.validated is True
+    news_card = next(card for card in nrv.cards if card.title == "News")
+    assert news_card.evidence_ids
+    assert "22.0% of portfolio" in news_card.portfolio_impact
 
 
 def test_compute_dominance_boosts_held_names():
@@ -116,6 +121,8 @@ def test_render_feed_html_embeds_deck():
     end = html.index(";\n", start)
     data = json.loads(html[start:end])
     assert len(data["narratives"]) == 2
+    assert "Sources (" in html
+    assert "finance.yahoo.com" in html
 
 
 # --- saved-run loader -----------------------------------------------------

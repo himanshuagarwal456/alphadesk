@@ -79,3 +79,7 @@ class AgentState(MessagesState):
     portfolio_context: Annotated[str, "Rendered book briefing (stance, held position, exposure/cash) injected into the Portfolio Manager"]
     position_stance: Annotated[str, "initiate | manage — whether this run opens or manages existing exposure"]
     market_view: Annotated[str, "Top-down market/regime view used as a sizing lens"]
+    evidence: Annotated[
+        list[dict],
+        "Structured evidence captured from providers during this run; conclusions reference IDs.",
+    ]
