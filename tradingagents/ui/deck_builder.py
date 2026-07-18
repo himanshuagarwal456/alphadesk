@@ -124,7 +124,7 @@ def evidence_rank_factors(evidence: list[Evidence], as_of: str | None) -> tuple[
     reference = _as_of_datetime(as_of)
     quality = []
     freshness = []
-    provider_defaults = {"fred": 0.95, "yfinance": 0.70}
+    provider_defaults = {"fred": 0.95, "sec": 0.98, "yfinance": 0.70}
     for item in evidence:
         quality.append(
             item.source_quality_score
@@ -181,6 +181,7 @@ def build_narrative(
     evidence = _coerce_evidence(final_state.get("evidence", []))
     news_evidence = [item for item in evidence if item.source_type == "news"]
     macro_evidence = [item for item in evidence if item.source_type == "macro"]
+    filing_evidence = [item for item in evidence if item.source_type == "filing"]
     source_quality, freshness = evidence_rank_factors(evidence, trade_date or None)
 
     cards: list[Card] = []
@@ -252,6 +253,12 @@ def build_narrative(
             id=f"{symbol}-fundamentals", kind=CardKind.EVIDENCE, title="Fundamentals",
             headline=_first_sentence(final_state["fundamentals_report"]),
             body=final_state["fundamentals_report"],
+            card_type="explanation",
+            evidence_ids=[item.id for item in filing_evidence],
+            evidence=filing_evidence,
+            portfolio_impact=portfolio_impact,
+            source_quality_score=source_quality,
+            freshness_score=freshness,
         ))
 
     # --- EVIDENCE: macro backdrop (official FRED observations) ---

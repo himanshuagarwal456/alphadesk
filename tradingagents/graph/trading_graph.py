@@ -484,6 +484,10 @@ class TradingAgentsGraph:
             clear_captured_macro_evidence,
             consume_captured_macro_evidence,
         )
+        from tradingagents.dataflows.sec import (
+            clear_captured_filing_evidence,
+            consume_captured_filing_evidence,
+        )
         from tradingagents.dataflows.yfinance_news import (
             clear_captured_news_evidence,
             consume_captured_news_evidence,
@@ -491,6 +495,7 @@ class TradingAgentsGraph:
 
         clear_captured_news_evidence(company_name)
         clear_captured_macro_evidence()
+        clear_captured_filing_evidence(company_name)
         past_context = self.memory_log.get_past_context(company_name)
         instrument_context = self.resolve_instrument_context(company_name, asset_type)
 
@@ -554,6 +559,7 @@ class TradingAgentsGraph:
             *final_state.get("evidence", []),
             *(item.model_dump(mode="json") for item in consume_captured_news_evidence(company_name)),
             *(item.model_dump(mode="json") for item in consume_captured_macro_evidence()),
+            *(item.model_dump(mode="json") for item in consume_captured_filing_evidence(company_name)),
         ]
         self._persist_living_thesis(company_name, str(trade_date), final_state)
         self._persist_decision_journal(company_name, str(trade_date), final_state)
