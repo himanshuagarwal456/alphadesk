@@ -14,6 +14,11 @@ remains `tradingagents` for backward compatibility.
 
 ### Added
 
+- **Living thesis persistence (v1).** `tradingagents/thesis/` stores a
+  per-symbol current thesis plus immutable dated revisions. Structured Portfolio
+  Manager decisions retain rating, thesis, target, horizon, evidence IDs, and a
+  confidence-history chain; persistence is opt-in through
+  `TRADINGAGENTS_THESIS_PERSIST_ENABLED=true`.
 - **FRED macro evidence and evidence-aware ranking.** Successful macro series
   fetches now normalize into source-linked `Evidence` records (official FRED
   URL, observation time, bounded summary, authority score) alongside news

@@ -83,3 +83,7 @@ class AgentState(MessagesState):
         list[dict],
         "Structured evidence captured from providers during this run; conclusions reference IDs.",
     ]
+    portfolio_decision_struct: Annotated[
+        dict | None,
+        "Structured PortfolioDecision retained for optional living-thesis persistence.",
+    ]

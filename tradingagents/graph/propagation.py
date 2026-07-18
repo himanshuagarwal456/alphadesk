@@ -79,6 +79,7 @@ class Propagator:
             "sentiment_report": "",
             "news_report": "",
             "evidence": [],
+            "portfolio_decision_struct": None,
         }
 
     def get_graph_args(self, callbacks: list | None = None) -> dict[str, Any]:
