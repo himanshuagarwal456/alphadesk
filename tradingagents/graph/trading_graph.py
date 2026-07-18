@@ -1,5 +1,6 @@
 # TradingAgents/graph/trading_graph.py
 
+import copy
 import json
 import logging
 import os
@@ -87,7 +88,9 @@ class TradingAgentsGraph:
             callbacks: Optional list of callback handlers (e.g., for tracking LLM/tool stats)
         """
         self.debug = debug
-        self.config = config or DEFAULT_CONFIG
+        # Deep-copy so per-instance mutations (vendor overrides, paths) can
+        # never leak into the shared DEFAULT_CONFIG or a caller's dict.
+        self.config = copy.deepcopy(config if config is not None else DEFAULT_CONFIG)
         self.callbacks = callbacks or []
 
         # Update the interface's config
