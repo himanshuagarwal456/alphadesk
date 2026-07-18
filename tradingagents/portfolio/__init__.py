@@ -23,22 +23,47 @@ from .context import (
     render_portfolio_context,
 )
 from .csv_loader import PortfolioCSVError, load_portfolio_from_csv
+from .preview import ImportPreview, ImportRowResult, RowStatus, preview_portfolio_csv
+from .product import PortfolioControls, Watchlist, WatchlistItem
 from .runner import BookTarget, iter_book_targets, run_book
 from .schemas import Direction, Portfolio, Position
+from .service import (
+    CURRENT_SNAPSHOT_ID,
+    PortfolioSummary,
+    PositionDetail,
+    ThesisCoverage,
+    summarize_portfolio,
+    thesis_coverage,
+    upsert_position,
+)
 from .store import PortfolioStore
 
 __all__ = [
+    "CURRENT_SNAPSHOT_ID",
     "BookTarget",
     "Direction",
+    "ImportPreview",
+    "ImportRowResult",
     "Portfolio",
     "PortfolioCSVError",
+    "PortfolioControls",
     "PortfolioStore",
+    "PortfolioSummary",
     "Position",
+    "PositionDetail",
+    "RowStatus",
     "Stance",
+    "ThesisCoverage",
+    "Watchlist",
+    "WatchlistItem",
     "classify_stance",
     "iter_book_targets",
     "load_portfolio_from_csv",
+    "preview_portfolio_csv",
     "render_market_view",
     "render_portfolio_context",
     "run_book",
+    "summarize_portfolio",
+    "thesis_coverage",
+    "upsert_position",
 ]

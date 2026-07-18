@@ -76,3 +76,16 @@ class PortfolioRepository:
             (row.id, Portfolio.model_validate(row.payload))
             for row in self._session.scalars(stmt)
         ]
+
+    def delete(self, workspace_id: str, snapshot_id: str) -> bool:
+        row = self._session.scalars(
+            select(PortfolioSnapshotRow).where(
+                PortfolioSnapshotRow.workspace_id == workspace_id,
+                PortfolioSnapshotRow.id == snapshot_id,
+            )
+        ).first()
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.flush()
+        return True

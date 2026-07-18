@@ -212,3 +212,39 @@ class ObjectArtifactRow(Base):
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class WorkspacePortfolioStateRow(Base):
+    """Per-workspace pointer to the active book and product controls."""
+
+    __tablename__ = "workspace_portfolio_state"
+
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True
+    )
+    current_snapshot_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    monitoring_enabled: Mapped[str] = mapped_column(String(8), nullable=False, default="true")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class WatchlistRow(Base):
+    __tablename__ = "watchlists"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_watchlists_workspace_id"),
+        Index("ix_watchlists_workspace_name", "workspace_id", "name"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alphadesk"
-version = "0.4.0"
+version = "0.5.0"
 description = "AlphaDesk: Portfolio-aware, hedge-fund-style multi-agent LLM trading framework (fork of TradingAgents)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -71,6 +71,8 @@ tradingagents = "cli.main:app"
 alphadesk-feed = "tradingagents.ui.feed_cli:main"
 # HTTP API (requires the [server] extra): `alphadesk-api` or `uvicorn tradingagents.api.app:app`.
 alphadesk-api = "tradingagents.api.app:main"
+# Portfolio CSV preview/confirm (confirm requires [server]).
+alphadesk-portfolio = "tradingagents.portfolio.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["tradingagents*", "cli*"]

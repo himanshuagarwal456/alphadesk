@@ -693,6 +693,10 @@ Each fact retains:
 
 ## Phase 5 — Portfolio Product
 
+> **Status:** Backend product surface landed on `main` (CSV preview/confirm,
+> current-book editing, watchlists, exposure summary, thesis coverage,
+> monitoring pause controls). Persistent web portfolio page remains Phase 9.
+
 **Goal:** Give alpha users a usable portfolio-centered starting point.
 
 ### Deliverables
