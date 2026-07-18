@@ -91,6 +91,10 @@ def test_build_narrative_arc_and_framing():
     assert nrv.cards[0].chart_spec.validated is True
     news_card = next(card for card in nrv.cards if card.title == "News")
     assert news_card.evidence_ids
+    assert all(item.provider_id == "yfinance" for item in news_card.evidence)
+    macro_card = next(card for card in nrv.cards if card.title == "Macro")
+    assert macro_card.evidence_ids
+    assert all(item.provider_id == "fred" for item in macro_card.evidence)
     assert "22.0% of portfolio" in news_card.portfolio_impact
 
 
@@ -123,6 +127,7 @@ def test_render_feed_html_embeds_deck():
     assert len(data["narratives"]) == 2
     assert "Sources (" in html
     assert "finance.yahoo.com" in html
+    assert "fred.stlouisfed.org" in html
 
 
 # --- saved-run loader -----------------------------------------------------

@@ -12,6 +12,7 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.ui.chart_selector import select_chart_spec
 from tradingagents.ui.chart_spec import ChartTemplate
 from tradingagents.ui.chart_validator import validate_chart_spec
+from tradingagents.ui.deck_builder import evidence_rank_factors
 from tradingagents.ui.runs import load_saved_runs
 from tradingagents.ui.sample import sample_final_state, sample_ohlcv
 from tradingagents.ui.visualization_intent import AnalyticalQuestion, VisualizationIntent
@@ -97,6 +98,21 @@ def test_chart_validator_rejects_invalid_scenario():
     result = validate_chart_spec(spec, intent, sample_ohlcv())
     assert not result.valid
     assert "scenario target must exceed stop" in result.errors
+
+
+@pytest.mark.unit
+def test_evidence_rank_factors_reward_authoritative_fresh_sources():
+    fresh_fred = Evidence(
+        provider_id="fred",
+        source_type="macro",
+        title="CPI",
+        source_url="https://fred.stlouisfed.org/series/CPIAUCSL",
+        published_at="2026-01-14T00:00:00Z",
+        source_quality_score=0.95,
+    )
+    quality, freshness = evidence_rank_factors([fresh_fred], "2026-01-15")
+    assert quality == 0.95
+    assert freshness > 0.98
 
 
 @pytest.mark.unit

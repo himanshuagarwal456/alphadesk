@@ -89,6 +89,23 @@ class FredConfigTests(unittest.TestCase):
 
 @pytest.mark.unit
 class FredFormattingTests(unittest.TestCase):
+    def test_normalize_fred_series_creates_macro_evidence(self):
+        points = [("2025-06-01", "4.1"), ("2025-09-01", "4.4")]
+        evidence = fred.normalize_fred_series("UNRATE", _META["seriess"][0], points)
+        self.assertEqual(evidence.provider_id, "fred")
+        self.assertEqual(evidence.source_type, "macro")
+        self.assertEqual(str(evidence.source_url), "https://fred.stlouisfed.org/series/UNRATE")
+        self.assertEqual(evidence.source_quality_score, 0.95)
+        self.assertIn("4.4", evidence.summary)
+
+    def test_successful_fetch_captures_macro_evidence(self):
+        fred.clear_captured_macro_evidence()
+        with mock.patch.object(fred, "_request", side_effect=_request_stub()):
+            fred.get_macro_data("unemployment", "2025-09-30", 365)
+        captured = fred.consume_captured_macro_evidence()
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0].source_type, "macro")
+
     def test_report_has_header_latest_change_and_table(self):
         with mock.patch.object(fred, "_request", side_effect=_request_stub()):
             out = fred.get_macro_data("unemployment", "2025-09-30", 365)

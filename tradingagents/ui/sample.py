@@ -96,7 +96,17 @@ def sample_final_state(
             publisher="Yahoo Finance",
             published_at="2026-01-14T15:00:00Z",
             summary="A deterministic sample source used only by the feed demo.",
-        ).model_dump(mode="json")
+        ).model_dump(mode="json"),
+        Evidence(
+            provider_id="fred",
+            source_type="macro",
+            title="Unemployment Rate (UNRATE)",
+            source_url="https://fred.stlouisfed.org/series/UNRATE",
+            publisher="FRED",
+            published_at="2026-01-01T00:00:00Z",
+            summary="Latest: 4.2 % (2026-01-01); change over window: +0.1.",
+            source_quality_score=0.95,
+        ).model_dump(mode="json"),
     ]
     return state
 

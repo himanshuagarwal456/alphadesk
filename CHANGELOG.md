@@ -14,6 +14,12 @@ remains `tradingagents` for backward compatibility.
 
 ### Added
 
+- **FRED macro evidence and evidence-aware ranking.** Successful macro series
+  fetches now normalize into source-linked `Evidence` records (official FRED
+  URL, observation time, bounded summary, authority score) alongside news
+  evidence. Per-name feeds expose a Macro card with source drill-down, keep
+  macro/news evidence separate, and use transparent freshness and source-quality
+  bonuses in their portfolio-aware rank.
 - **Parallel analyst execution.** The four analysts run concurrently as
   isolated subgraphs (own message channel + tool loop) that fan out from
   `START` and fan in to the research debate, instead of the previous serial

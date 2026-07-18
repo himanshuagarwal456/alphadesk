@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 import plotly.graph_objects as go
@@ -98,17 +99,52 @@ def compute_dominance(
     sentiment_score: float | None,
     portfolio_weight: float | None,
     held: bool,
+    evidence: list[Evidence] | None = None,
+    as_of: str | None = None,
 ) -> float:
-    """Vertical-rank score: signal magnitude + portfolio impact.
+    """Vertical-rank score: signal, portfolio impact, and evidence quality.
 
     - Conviction: distance of the rating from Hold (0..2).
     - Sentiment extremity: distance of the score from neutral 5 (0..~1).
     - Portfolio impact: held names are boosted, weighted by book weight.
+    - Evidence: additive, bounded provider-quality and freshness bonuses.
     """
     conviction = abs(_RATING_VALUE.get((rating or "").lower(), 2) - 2)  # 0..2
     extremity = abs((sentiment_score if sentiment_score is not None else 5.0) - 5.0) / 5.0  # 0..1
     impact = (1.0 + 4.0 * (portfolio_weight or 0.0)) if held else 0.0
-    return round(conviction + extremity + impact, 4)
+    source_quality, freshness = evidence_rank_factors(evidence or [], as_of)
+    return round(conviction + extremity + impact + 0.25 * source_quality + 0.25 * freshness, 4)
+
+
+def evidence_rank_factors(evidence: list[Evidence], as_of: str | None) -> tuple[float, float]:
+    """Return mean provider quality and recency scores for transparent ranking."""
+    if not evidence:
+        return 0.0, 0.0
+    reference = _as_of_datetime(as_of)
+    quality = []
+    freshness = []
+    provider_defaults = {"fred": 0.95, "yfinance": 0.70}
+    for item in evidence:
+        quality.append(
+            item.source_quality_score
+            if item.source_quality_score is not None
+            else provider_defaults.get(item.provider_id.lower(), 0.50)
+        )
+        if item.published_at is None:
+            freshness.append(0.0)
+            continue
+        published = item.published_at
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        age_days = max(0.0, (reference - published).total_seconds() / 86_400)
+        freshness.append(max(0.0, 1.0 - age_days / 90.0))
+    return round(sum(quality) / len(quality), 4), round(sum(freshness) / len(freshness), 4)
+
+
+def _as_of_datetime(as_of: str | None) -> datetime:
+    if as_of:
+        return datetime.strptime(as_of, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc)
 
 
 def build_narrative(
@@ -141,6 +177,9 @@ def build_narrative(
         badges.append("Held")
     portfolio_impact = _portfolio_impact(held, weight)
     evidence = _coerce_evidence(final_state.get("evidence", []))
+    news_evidence = [item for item in evidence if item.source_type == "news"]
+    macro_evidence = [item for item in evidence if item.source_type == "macro"]
+    source_quality, freshness = evidence_rank_factors(evidence, trade_date or None)
 
     cards: list[Card] = []
 
@@ -208,14 +247,30 @@ def build_narrative(
             body=final_state["fundamentals_report"],
         ))
 
+    # --- EVIDENCE: macro backdrop (official FRED observations) ---
+    if macro_evidence:
+        cards.append(Card(
+            id=f"{symbol}-macro", kind=CardKind.EVIDENCE, title="Macro",
+            headline=f"Macro backdrop: {len(macro_evidence)} FRED series",
+            body="\n".join(item.summary for item in macro_evidence),
+            card_type="explanation",
+            evidence_ids=[item.id for item in macro_evidence],
+            evidence=macro_evidence,
+            portfolio_impact=portfolio_impact,
+            source_quality_score=source_quality,
+            freshness_score=freshness,
+        ))
+
     # --- EVIDENCE: news ---
     if final_state.get("news_report"):
         cards.append(Card(
             id=f"{symbol}-news", kind=CardKind.EVIDENCE, title="News",
             headline=_first_sentence(final_state["news_report"]),
             body=final_state["news_report"], card_type="event",
-            evidence_ids=[item.id for item in evidence],
-            evidence=evidence, portfolio_impact=portfolio_impact,
+            evidence_ids=[item.id for item in news_evidence],
+            evidence=news_evidence, portfolio_impact=portfolio_impact,
+            source_quality_score=source_quality,
+            freshness_score=freshness,
         ))
 
     # --- TENSION: bull vs bear, framed as a risk/reward band when priced ---
@@ -250,6 +305,7 @@ def build_narrative(
 
     dominance = compute_dominance(
         rating=rating, sentiment_score=sent_score, portfolio_weight=weight, held=held,
+        evidence=evidence, as_of=trade_date or None,
     )
     stance = "manage" if held else "initiate"
     return Narrative(
@@ -257,7 +313,13 @@ def build_narrative(
         title=f"{symbol} — {rating}" if rating else symbol,
         summary=_first_sentence(verdict_md) or f"Latest read on {symbol}",
         dominance=dominance, badges=badges, cards=cards,
-        meta={"trade_date": trade_date, "stance": stance, "held": held},
+        meta={
+            "trade_date": trade_date,
+            "stance": stance,
+            "held": held,
+            "source_quality_score": source_quality,
+            "freshness_score": freshness,
+        },
     )
 
 
