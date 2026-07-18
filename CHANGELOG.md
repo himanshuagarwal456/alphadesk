@@ -14,6 +14,10 @@ remains `tradingagents` for backward compatibility.
 
 ### Added
 
+- **Structured outputs are canonical (alpha PR 3).** Research Manager, Trader,
+  Sentiment Analyst, and Portfolio Manager keep their typed payloads in graph
+  state and saved runs (`*_struct` fields); the feed reads structured rating,
+  target/stop, and sentiment directly, using regex parsing only for legacy runs.
 - **Canonical domain foundation (alpha PR 2).** `tradingagents/domain/` adds
   `Instrument`, `SourceRecord` (with public/private/licensed ownership),
   `Claim` (evidence-traceable assertions), and a durable `AnalysisRun` record

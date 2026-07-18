@@ -161,10 +161,26 @@ def build_narrative(
 
     verdict_md = final_state.get("final_trade_decision", "") or ""
     trader_md = final_state.get("trader_investment_plan", "") or ""
-    rating = parse_rating(verdict_md) or parse_rating(trader_md)
-    target = _parse_money(verdict_md, "Price Target") or _parse_money(trader_md, "Entry Price")
-    stop = _parse_money(trader_md, "Stop Loss")
-    sent_score, sent_band = parse_sentiment(final_state.get("sentiment_report", ""))
+
+    # Structured payloads are canonical when the run carries them; the regex
+    # parsers remain only as a fallback for legacy saved runs without structs.
+    pm_struct = final_state.get("portfolio_decision_struct") or {}
+    trader_struct = final_state.get("trader_proposal_struct") or {}
+    sentiment_struct = final_state.get("sentiment_report_struct") or {}
+
+    rating = pm_struct.get("rating") or parse_rating(verdict_md) or parse_rating(trader_md)
+    target = (
+        pm_struct.get("price_target")
+        or trader_struct.get("entry_price")
+        or _parse_money(verdict_md, "Price Target")
+        or _parse_money(trader_md, "Entry Price")
+    )
+    stop = trader_struct.get("stop_loss") or _parse_money(trader_md, "Stop Loss")
+    if sentiment_struct.get("overall_score") is not None:
+        sent_score = float(sentiment_struct["overall_score"])
+        sent_band = sentiment_struct.get("overall_band")
+    else:
+        sent_score, sent_band = parse_sentiment(final_state.get("sentiment_report", ""))
 
     # Portfolio framing.
     held = bool(portfolio is not None and getattr(portfolio, "holds", lambda _s: False)(symbol))

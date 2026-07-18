@@ -102,6 +102,13 @@ def make_analyst_runner(subgraph: Any, spec: AnalystNodeSpec) -> Callable:
                 sub_state[key] = state[key]
 
         result = subgraph.invoke(sub_state)
-        return {spec.report_key: result.get(spec.report_key, "")}
+        update = {spec.report_key: result.get(spec.report_key, "")}
+        # Analysts with structured output also emit a canonical payload under
+        # "<report_key>_struct"; forward it when present so the parent state
+        # keeps the structured object (markdown stays presentation-only).
+        struct_key = f"{spec.report_key}_struct"
+        if result.get(struct_key) is not None:
+            update[struct_key] = result[struct_key]
+        return update
 
     return analyst_runner

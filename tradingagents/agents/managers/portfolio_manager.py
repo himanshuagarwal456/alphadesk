@@ -10,16 +10,15 @@ back gracefully to free-text generation.
 
 from __future__ import annotations
 
-import logging
-
 from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.utils.agent_utils import (
     get_instrument_context_from_state,
     get_language_instruction,
 )
-from tradingagents.agents.utils.structured import bind_structured
-
-logger = logging.getLogger(__name__)
+from tradingagents.agents.utils.structured import (
+    bind_structured,
+    invoke_structured_with_payload,
+)
 
 
 def create_portfolio_manager(llm):
@@ -71,23 +70,13 @@ def create_portfolio_manager(llm):
 
 Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}"""
 
-        decision_struct = None
-        if structured_llm is not None:
-            try:
-                decision = structured_llm.invoke(prompt)
-                if decision is None:
-                    raise ValueError("structured output returned no parsed result")
-                final_trade_decision = render_pm_decision(decision)
-                decision_struct = decision.model_dump(mode="json")
-            except Exception as exc:
-                logger.warning(
-                    "Portfolio Manager: structured-output invocation failed (%s); "
-                    "retrying once as free text",
-                    exc,
-                )
-                final_trade_decision = llm.invoke(prompt).content
-        else:
-            final_trade_decision = llm.invoke(prompt).content
+        final_trade_decision, decision_struct = invoke_structured_with_payload(
+            structured_llm,
+            llm,
+            prompt,
+            render_pm_decision,
+            "Portfolio Manager",
+        )
 
         new_risk_debate_state = {
             "judge_decision": final_trade_decision,

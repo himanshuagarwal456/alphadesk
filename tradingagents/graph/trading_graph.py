@@ -689,6 +689,12 @@ class TradingAgentsGraph:
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
             "evidence_ids": [item.id for item in evidence],
+            # Canonical structured outputs (None when the agent fell back to
+            # free text). New consumers read these instead of parsing markdown.
+            "research_plan_struct": final_state.get("research_plan_struct"),
+            "trader_proposal_struct": final_state.get("trader_proposal_struct"),
+            "sentiment_report_struct": final_state.get("sentiment_report_struct"),
+            "portfolio_decision_struct": final_state.get("portfolio_decision_struct"),
         }
 
         # Save to file. Reject ticker values that would escape the

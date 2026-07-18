@@ -9,7 +9,7 @@ from tradingagents.agents.utils.agent_utils import (
 )
 from tradingagents.agents.utils.structured import (
     bind_structured,
-    invoke_structured_or_freetext,
+    invoke_structured_with_payload,
 )
 
 
@@ -42,7 +42,7 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
 **Debate History:**
 {history}""" + get_language_instruction()
 
-        investment_plan = invoke_structured_or_freetext(
+        investment_plan, plan_struct = invoke_structured_with_payload(
             structured_llm,
             llm,
             prompt,
@@ -62,6 +62,7 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
         return {
             "investment_debate_state": new_investment_debate_state,
             "investment_plan": investment_plan,
+            "research_plan_struct": plan_struct,
         }
 
     return research_manager_node

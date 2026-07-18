@@ -87,3 +87,15 @@ class AgentState(MessagesState):
         dict | None,
         "Structured PortfolioDecision retained for optional living-thesis persistence.",
     ]
+    research_plan_struct: Annotated[
+        dict | None,
+        "Structured ResearchPlan; canonical alongside the rendered investment_plan.",
+    ]
+    trader_proposal_struct: Annotated[
+        dict | None,
+        "Structured TraderProposal; canonical alongside the rendered trader plan.",
+    ]
+    sentiment_report_struct: Annotated[
+        dict | None,
+        "Structured SentimentReport; canonical alongside the rendered report.",
+    ]
