@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alphadesk"
-version = "0.3.1"
+version = "0.4.0"
 description = "AlphaDesk: Portfolio-aware, hedge-fund-style multi-agent LLM trading framework (fork of TradingAgents)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -50,6 +50,17 @@ bedrock = [
 ui = [
     "plotly>=5.24",
 ]
+# Durable multi-user product surface (Phase 3): FastAPI + SQLAlchemy + Alembic.
+# Install with: pip install "alphadesk[server]". Postgres is optional at runtime;
+# SQLite is used for local/dev and tests when DATABASE_URL is unset.
+server = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14",
+    "httpx>=0.27",
+    "psycopg[binary]>=3.2",
+]
 
 [project.scripts]
 # `alphadesk` is the primary command; `tradingagents` is kept as a back-compat
@@ -58,6 +69,8 @@ alphadesk = "cli.main:app"
 tradingagents = "cli.main:app"
 # Builds the portfolio-aware insight feed (requires the [ui] extra).
 alphadesk-feed = "tradingagents.ui.feed_cli:main"
+# HTTP API (requires the [server] extra): `alphadesk-api` or `uvicorn tradingagents.api.app:app`.
+alphadesk-api = "tradingagents.api.app:main"
 
 [tool.setuptools.packages.find]
 include = ["tradingagents*", "cli*"]
@@ -72,6 +85,7 @@ markers = [
     "unit: fast isolated unit tests",
     "integration: tests requiring external services",
     "smoke: quick sanity-check tests",
+    "server: tests that require the optional [server] extra",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -92,6 +106,8 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]   # intentional re-exports
+# FastAPI's Depends()/Query() defaults are the idiomatic DI pattern.
+"tradingagents/api/**/*.py" = ["B008"]
 
 [tool.ruff.lint.isort]
 # Keep multiple aliased names from one module in a single combined import block

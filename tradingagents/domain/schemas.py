@@ -146,3 +146,54 @@ class AnalysisRun(BaseModel):
         if self.id is None:
             self.id = _stable_id("ar", self.symbol, self.trade_date)
         return self
+
+
+class RunEvent(BaseModel):
+    """One progress / lifecycle event for a durable analysis run."""
+
+    id: str | None = None
+    analysis_run_id: str
+    workspace_id: str
+    sequence: int = Field(ge=0)
+    event_type: str = Field(min_length=1)
+    message: str = ""
+    payload: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    schema_version: int = 1
+
+    @model_validator(mode="after")
+    def _assign_id(self) -> RunEvent:
+        if self.id is None:
+            self.id = _stable_id(
+                "re",
+                self.workspace_id,
+                self.analysis_run_id,
+                str(self.sequence),
+                self.event_type,
+            )
+        return self
+
+
+class Workspace(BaseModel):
+    """Tenant boundary for all user-owned product records."""
+
+    id: str
+    name: str = Field(min_length=1)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    schema_version: int = 1
+
+
+class IntelligenceCardRecord(BaseModel):
+    """Persisted intelligence card projection (workspace-scoped)."""
+
+    id: str
+    workspace_id: str
+    symbol: str | None = None
+    card_type: str | None = None
+    title: str = ""
+    headline: str = ""
+    body: str = ""
+    evidence_ids: list[str] = Field(default_factory=list)
+    payload: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    schema_version: int = 1
