@@ -654,6 +654,10 @@ Each fact retains:
 
 ## Phase 4 — Authentication, Authorization, and Alpha Administration
 
+> **Delivery note:** Deferred until after the product surfaces and evals
+> (see §12 order 12). Build portfolio, thesis/journal, private research, and
+> the web app against workspace-scoped APIs first.
+
 **Goal:** Safely invite real users.
 
 ### Deliverables
@@ -778,6 +782,10 @@ Each fact retains:
 ---
 
 ## Phase 8 — Monitoring and Material-Change Intelligence
+
+> **Delivery note:** Deferred until after evaluations (see §12 order 11). Ship
+> the complete research → thesis → journal product loop first, then measure
+> quality, then add continuous monitoring.
 
 **Goal:** Move from one-time research to continuous portfolio intelligence.
 
@@ -1171,28 +1179,40 @@ Feedback must record the associated card, run, thesis revision, model version, a
 
 # 12. Recommended Delivery Sequence
 
-| Order | Workstream | Critical outcome |
+Phase numbers in §8 remain stable labels for scope. **Delivery order** below is
+product-first: finish the core research product before invite-only auth and
+before continuous monitoring.
+
+| Order | Workstream (phase) | Critical outcome |
 |---:|---|---|
-| 1 | SEC hardening | Existing integration is safe to extend |
-| 2 | Canonical domain models | Stable knowledge contracts |
-| 3 | Structured graph outputs | No Markdown-as-database pattern |
-| 4 | SEC facts and evidence | Trusted official fundamentals |
-| 5 | PostgreSQL and services | Durable multi-user product |
-| 6 | Authentication and tenancy | External users can be invited safely |
-| 7 | Portfolio product | User-specific product foundation |
-| 8 | Living thesis and journal | Core differentiated workflow |
-| 9 | Private research | User-owned context |
-| 10 | Monitoring and intelligence | Recurring product value |
-| 11 | Persistent frontend | Complete user experience |
-| 12 | Evaluations and operations | Alpha launch readiness |
+| 1 | SEC hardening (0) | Existing integration is safe to extend |
+| 2 | Canonical domain models (1) | Stable knowledge contracts |
+| 3 | Structured graph outputs (1) | No Markdown-as-database pattern |
+| 4 | SEC facts and evidence (2) | Trusted official fundamentals |
+| 5 | PostgreSQL and services (3) | Durable multi-user product foundation |
+| 6 | Portfolio product (5) | User-specific product foundation |
+| 7 | Living thesis and journal (6) | Core differentiated workflow |
+| 8 | Private research (7) | User-owned context |
+| 9 | Persistent frontend (9) | Complete user experience |
+| 10 | Evaluations and model governance (10) | Measurable AI quality |
+| 11 | Monitoring and intelligence (8) | Recurring product value after the loop works |
+| 12 | Authentication and tenancy (4) | External users can be invited safely |
+| 13 | Reliability, security, and operations (11) | Alpha launch ops readiness |
+| 14 | Legal, disclosure, and user trust (12) | Trust and compliance surface |
+
+Rationale:
+
+- Auth (phase 4) stays after the product surfaces are real so tenancy is wired
+  to finished APIs/UI rather than stubs.
+- Monitoring (phase 8) stays after evals so material-change alerts are gated on
+  measured quality, not shipped on an unfinished research loop.
 
 Several workstreams can overlap after the canonical schemas stabilize:
 
-- Frontend design can proceed against mocked API contracts.
-- Authentication can proceed alongside persistence.
-- SEC normalization can proceed alongside structured graph-state changes.
-- Evaluation datasets can be assembled throughout development.
-- Security and observability must be added continuously rather than postponed to the end.
+- Frontend design can proceed against mocked API contracts and `X-Workspace-Id`.
+- Evaluation datasets can be assembled throughout product development.
+- Security and observability basics should be added continuously; full auth and
+  ops hardening still land late in this sequence.
 
 ---
 
@@ -1264,7 +1284,7 @@ Approximately **5–8 months** for a credible external alpha, assuming significa
 Approximately **3–5 months**:
 
 - Engineer 1: domain, backend, orchestration, persistence.
-- Engineer 2: frontend, authentication, portfolio UX, integration.
+- Engineer 2: frontend, portfolio/thesis UX, integration (auth later).
 
 ## With three engineers
 

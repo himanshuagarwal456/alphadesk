@@ -15,8 +15,9 @@ migration-managed schema — without abandoning the existing file layouts yet.
 1. **Optional `[server]` extra.** FastAPI, SQLAlchemy, Alembic, and Postgres
    drivers stay out of the core CLI install. `pip install "alphadesk[server]"`.
 2. **Workspace-scoped rows.** Every user-owned table carries `workspace_id`
-   with unique constraints of the form `(workspace_id, id)`. Phase 4 auth will
-   bind callers to memberships; until then the API accepts `X-Workspace-Id`.
+   with unique constraints of the form `(workspace_id, id)`. Auth (phase 4,
+   delivered late per `docs/alpha-release.md` §12) will bind callers to
+   memberships; until then the API accepts `X-Workspace-Id`.
 3. **Canonical Pydantic payloads in JSON columns.** Indexed columns support
    queries (`symbol`, `status`, …); the full domain object lives in `payload`
    so schema evolution stays additive.
@@ -35,4 +36,5 @@ migration-managed schema — without abandoning the existing file layouts yet.
 
 - Core research tests do not require the server extra.
 - Cross-workspace access is a hard failure at the repository/API boundary.
-- Auth, invite-only signup, and role checks remain Phase 4 work.
+- Auth, invite-only signup, and role checks remain phase 4 scope, delivered
+  after the product surfaces and evals (not immediately after persistence).
