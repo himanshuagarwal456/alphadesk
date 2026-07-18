@@ -54,3 +54,26 @@ class LivingThesisStore:
     def upsert_run(self, thesis: LivingThesis, snapshot: ThesisSnapshot) -> None:
         self.snapshot(snapshot)
         self.save(thesis)
+
+    # --- Proposed revisions (audit history, including rejected ones) ---
+
+    def _proposal_path(self, symbol: str, proposal_id: str) -> Path:
+        return self._base / "proposals" / f"{symbol.upper()}_{proposal_id}.json"
+
+    def save_proposal(self, proposal) -> Path:
+        return self._write(self._proposal_path(proposal.symbol, proposal.id), proposal)
+
+    def load_proposals(self, symbol: str) -> list:
+        from .workflow import ProposedRevision
+
+        directory = self._base / "proposals"
+        if not directory.exists():
+            return []
+        prefix = f"{symbol.upper()}_"
+        return sorted(
+            (
+                ProposedRevision.model_validate_json(path.read_text())
+                for path in directory.glob(f"{prefix}*.json")
+            ),
+            key=lambda item: item.created_at,
+        )

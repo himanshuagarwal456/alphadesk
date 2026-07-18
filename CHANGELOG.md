@@ -14,6 +14,10 @@ remains `tradingagents` for backward compatibility.
 
 ### Added
 
+- **Thesis review workflow (alpha PR 5).** A thesis can be created from any
+  saved run (structured decision preferred, legacy markdown supported), and
+  changes now flow through proposed revisions with accept / edit / reject and
+  a persisted audit history — no thesis is silently overwritten.
 - **SEC company facts as evidence (alpha PR 4).** `get_fundamentals` via the
   `sec` vendor now appends official XBRL metrics (revenue, net income,
   operating income, assets, liabilities, diluted EPS, operating cash flow).

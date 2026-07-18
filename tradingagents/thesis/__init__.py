@@ -12,6 +12,13 @@ from .schemas import (
 )
 from .store import LivingThesisStore
 from .triggers import ThesisTrigger, apply_invalidation_status, evaluate_triggers
+from .workflow import (
+    ProposedRevision,
+    RevisionStatus,
+    create_thesis_from_run,
+    propose_revision,
+    review_revision,
+)
 
 __all__ = [
     "Catalyst",
@@ -28,4 +35,9 @@ __all__ = [
     "diff_or_none",
     "diff_snapshots",
     "evaluate_triggers",
+    "ProposedRevision",
+    "RevisionStatus",
+    "create_thesis_from_run",
+    "propose_revision",
+    "review_revision",
 ]
