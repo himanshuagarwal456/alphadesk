@@ -17,7 +17,7 @@ from tradingagents.persistence.repositories import (
 )
 from tradingagents.portfolio.context import render_portfolio_context
 from tradingagents.portfolio.preview import ImportPreview, preview_portfolio_csv
-from tradingagents.portfolio.product import PortfolioControls, WatchlistItem
+from tradingagents.portfolio.product import PortfolioControls
 from tradingagents.portfolio.schemas import Portfolio, Position
 from tradingagents.portfolio.service import (
     CURRENT_SNAPSHOT_ID,
@@ -69,12 +69,6 @@ class UpsertPositionRequest(BaseModel):
 
 class ControlsUpdateRequest(BaseModel):
     monitoring_enabled: bool
-
-
-class WatchlistUpsertRequest(BaseModel):
-    name: str = Field(min_length=1)
-    items: list[WatchlistItem] = Field(default_factory=list)
-    id: str | None = None
 
 
 def _activate_current(
