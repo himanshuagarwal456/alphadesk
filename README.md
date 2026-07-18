@@ -250,7 +250,8 @@ flowchart TB
 - [x] Portfolio-aware Portfolio Manager (exposure / concentration / cash constraints)
 - [x] Run the whole book at once (holdings + candidate watchlist)
 - [x] Automated top-down Market View builder (macro narrative as a sizing lens)
-- [ ] Persistent per-name thesis with invalidation triggers
+- [x] Persistent per-name thesis snapshots with evidence links and confidence history (enable with `TRADINGAGENTS_THESIS_PERSIST_ENABLED=true`)
+- [ ] Thesis catalysts, invalidation-trigger monitoring, and user-facing thesis diffs
 - [ ] Options-strategy agent
 - [ ] `backtrader` replay/backtest harness
 

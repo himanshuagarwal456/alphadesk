@@ -10,6 +10,8 @@ from typing import Any
 import yfinance as yf
 from langgraph.prebuilt import ToolNode
 
+from tradingagents.agents.schemas import PortfolioDecision
+
 # Import the abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
@@ -35,6 +37,7 @@ from tradingagents.evidence import Evidence, EvidenceStore
 from tradingagents.llm_clients import create_llm_client
 from tradingagents.portfolio.context import classify_stance, render_portfolio_context
 from tradingagents.reporting import write_report_tree
+from tradingagents.thesis import LivingThesisStore, build_thesis_update
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
@@ -551,6 +554,7 @@ class TradingAgentsGraph:
             *(item.model_dump(mode="json") for item in consume_captured_news_evidence(company_name)),
             *(item.model_dump(mode="json") for item in consume_captured_macro_evidence()),
         ]
+        self._persist_living_thesis(company_name, str(trade_date), final_state)
 
         # Store current state for reflection.
         self.curr_state = final_state
@@ -573,6 +577,33 @@ class TradingAgentsGraph:
             )
 
         return final_state, self.process_signal(final_state["final_trade_decision"])
+
+    def _persist_living_thesis(self, ticker: str, trade_date: str, final_state: dict) -> None:
+        """Persist a structured PM decision as a dated, evidence-linked thesis."""
+        if not self.config.get("thesis_persist_enabled"):
+            return
+        structured = final_state.get("portfolio_decision_struct")
+        if not structured:
+            return
+        try:
+            decision = PortfolioDecision.model_validate(structured)
+            store = LivingThesisStore(self.config["thesis_store_dir"])
+            prior = store.load(ticker)
+            evidence_ids = [
+                item.get("id") if isinstance(item, dict) else item.id
+                for item in final_state.get("evidence", [])
+            ]
+            snapshot, thesis = build_thesis_update(
+                symbol=ticker,
+                trade_date=trade_date,
+                stance=final_state.get("position_stance", ""),
+                decision=decision,
+                evidence_ids=[item for item in evidence_ids if item],
+                prior=prior,
+            )
+            store.upsert_run(thesis, snapshot)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not persist living thesis for %s: %s", ticker, exc)
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""
