@@ -1,10 +1,10 @@
 (() => {
   const STORAGE_KEY = "alphadesk.workspaceId";
   const META = {
-    intelligence: ["Intelligence", "Material changes and saved intelligence cards."],
+    workbench: ["Run research", "Start a multi-agent analysis and turn it into a thesis."],
     portfolio: ["Portfolio", "Current book, coverage, and import workflow."],
-    research: ["Research", "Private uploads that stay inside this workspace."],
-    workbench: ["Workbench", "Run research, review durable runs, and create theses."],
+    research: ["Documents", "Private uploads that stay inside this workspace."],
+    intelligence: ["Intelligence", "Material changes and saved intelligence cards."],
     journal: ["Journal", "Decision journal and outcome reviews."],
     settings: ["Settings", "Workspace defaults and API connectivity."],
   };
@@ -489,5 +489,5 @@
     if (btn) show(btn.dataset.view);
   });
 
-  show("intelligence");
+  show("workbench");
 })();

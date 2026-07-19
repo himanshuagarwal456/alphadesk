@@ -60,6 +60,14 @@ def create_app(
     def root_redirect():
         return RedirectResponse(url="/app/")
 
+    @application.middleware("http")
+    async def _no_cache_app_assets(request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path == "/app" or path.startswith("/app"):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
+
     if STATIC_DIR.is_dir():
         application.mount(
             "/app",

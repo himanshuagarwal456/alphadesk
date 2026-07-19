@@ -30,10 +30,13 @@ def test_web_app_served(client: TestClient) -> None:
     assert page.status_code == 200
     assert "AlphaDesk" in page.text
     assert "/app/app.js" in page.text
+    assert "Run research" in page.text
 
     js = client.get("/app/app.js")
     assert js.status_code == 200
     assert "X-Workspace-Id" in js.text
+    assert "/v1/runs/start" in js.text
+    assert js.headers.get("cache-control", "").startswith("no-store")
 
     css = client.get("/app/styles.css")
     assert css.status_code == 200
