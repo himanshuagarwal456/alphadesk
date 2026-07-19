@@ -4,7 +4,7 @@
     intelligence: ["Intelligence", "Material changes and saved intelligence cards."],
     portfolio: ["Portfolio", "Current book, coverage, and import workflow."],
     research: ["Research", "Private uploads that stay inside this workspace."],
-    workbench: ["Workbench", "Runs, theses, and evidence-linked decisions."],
+    workbench: ["Workbench", "Run research, review durable runs, and create theses."],
     journal: ["Journal", "Decision journal and outcome reviews."],
     settings: ["Settings", "Workspace defaults and API connectivity."],
   };
@@ -254,45 +254,127 @@
 
   async function renderWorkbench() {
     const root = document.getElementById("view-workbench");
-    root.innerHTML = `<div class="grid-2">
+    const today = new Date().toISOString().slice(0, 10);
+    root.innerHTML = `<div class="stack">
       <div class="panel">
-        <h2 style="margin:0 0 .75rem;font-family:var(--font-display);font-size:1.25rem;">Analysis runs</h2>
-        <div id="runs" class="list"></div>
+        <h2 style="margin:0 0 .75rem;font-family:var(--font-display);font-size:1.25rem;">Run research</h2>
+        <p class="hint" style="margin:0 0 .85rem;">Starts the multi-agent desk for one symbol, using your current book when available. Runs can take several minutes.</p>
+        <div class="grid-2">
+          <div class="form-row field"><label for="run-symbol">Symbol</label><input id="run-symbol" placeholder="NVDA" /></div>
+          <div class="form-row field"><label for="run-date">Trade date</label><input id="run-date" type="date" value="${today}" /></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn-primary" id="start-run">Run research</button>
+        </div>
+        <div id="run-progress" class="meta" style="margin-top:.85rem;"></div>
       </div>
-      <div class="panel">
-        <h2 style="margin:0 0 .75rem;font-family:var(--font-display);font-size:1.25rem;">Theses</h2>
-        <div id="theses" class="list"></div>
-        <div class="form-row field" style="margin-top:1rem;"><label for="from-run">Create thesis from run id</label><input id="from-run" placeholder="ar_…" /></div>
-        <div class="actions"><button type="button" class="btn-primary" id="create-thesis">Create from run</button></div>
+      <div class="grid-2">
+        <div class="panel">
+          <h2 style="margin:0 0 .75rem;font-family:var(--font-display);font-size:1.25rem;">Analysis runs</h2>
+          <div id="runs" class="list"></div>
+        </div>
+        <div class="panel">
+          <h2 style="margin:0 0 .75rem;font-family:var(--font-display);font-size:1.25rem;">Theses</h2>
+          <div id="theses" class="list"></div>
+          <div class="form-row field" style="margin-top:1rem;"><label for="from-run">Create thesis from run id</label><input id="from-run" placeholder="ar_…" /></div>
+          <div class="actions"><button type="button" class="btn-primary" id="create-thesis">Create from run</button></div>
+        </div>
       </div>
     </div>`;
 
-    const runs = await api("/v1/runs?limit=40");
-    const runsEl = root.querySelector("#runs");
-    runsEl.innerHTML = runs.length
-      ? runs
-          .map(
-            (r) => `<article class="row">
-              <strong>${escapeHtml(r.symbol)}</strong>
-              <div class="meta">${escapeHtml(r.trade_date)} · ${escapeHtml(r.status)} · ${escapeHtml(r.final_rating || "no rating")}</div>
-              <div class="mono">${escapeHtml(r.id)}</div>
-            </article>`
-          )
-          .join("")
-      : empty("No durable runs yet. Create one via /v1/runs or the CLI.");
+    async function loadLists() {
+      const runs = await api("/v1/runs?limit=40");
+      const runsEl = root.querySelector("#runs");
+      runsEl.innerHTML = runs.length
+        ? runs
+            .map(
+              (r) => `<article class="row">
+                <strong>${escapeHtml(r.symbol)}</strong>
+                <div class="meta">${escapeHtml(r.trade_date)} · ${escapeHtml(r.status)} · ${escapeHtml(r.final_rating || "no rating")}</div>
+                <div class="mono">${escapeHtml(r.id)}</div>
+                <div class="actions">
+                  <button type="button" class="btn" data-thesis="${escapeHtml(r.id)}" ${r.status === "completed" ? "" : "disabled"}>Create thesis</button>
+                </div>
+              </article>`
+            )
+            .join("")
+        : empty("No durable runs yet. Use Run research above.");
 
-    const theses = await api("/v1/theses");
-    const thesesEl = root.querySelector("#theses");
-    thesesEl.innerHTML = theses.length
-      ? theses
-          .map(
-            (t) => `<article class="row">
-              <strong>${escapeHtml(t.symbol || t.id)}</strong>
-              <div class="meta">${escapeHtml(t.status || "active")} · snapshot ${escapeHtml(t.current_snapshot_id || "—")}</div>
-            </article>`
-          )
-          .join("")
-      : empty("No theses yet.");
+      runsEl.querySelectorAll("[data-thesis]").forEach((btn) => {
+        btn.onclick = async () => {
+          root.querySelector("#from-run").value = btn.dataset.thesis;
+          root.querySelector("#create-thesis").click();
+        };
+      });
+
+      const theses = await api("/v1/theses");
+      const thesesEl = root.querySelector("#theses");
+      thesesEl.innerHTML = theses.length
+        ? theses
+            .map(
+              (t) => `<article class="row">
+                <strong>${escapeHtml(t.symbol || t.id)}</strong>
+                <div class="meta">${escapeHtml(t.status || "active")} · snapshot ${escapeHtml(t.current_snapshot_id || "—")}</div>
+              </article>`
+            )
+            .join("")
+        : empty("No theses yet.");
+    }
+
+    async function pollRun(runId) {
+      const progress = root.querySelector("#run-progress");
+      let lastSeq = -1;
+      const terminal = new Set(["completed", "failed", "cancelled", "partially_completed"]);
+      for (let i = 0; i < 180; i += 1) {
+        const run = await api(`/v1/runs/${runId}`);
+        const events = await api(`/v1/runs/${runId}/events?after_sequence=${lastSeq}`);
+        if (events.length) {
+          lastSeq = events[events.length - 1].sequence;
+          const lines = events.map((e) => `${e.event_type}: ${e.message || ""}`).join(" · ");
+          progress.innerHTML = `<div><strong>${escapeHtml(run.status)}</strong> · ${escapeHtml(run.final_rating || "…")}</div><div class="mono">${escapeHtml(lines)}</div>`;
+        } else {
+          progress.innerHTML = `<div><strong>${escapeHtml(run.status)}</strong></div>`;
+        }
+        if (terminal.has(run.status)) {
+          if (run.status === "completed") {
+            setStatus(`Research complete: ${run.symbol} → ${run.final_rating || "done"}`, "ok");
+            root.querySelector("#from-run").value = run.id;
+          } else {
+            setStatus(run.error || `Run ${run.status}`, "error");
+          }
+          await loadLists();
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      setStatus("Still running — refresh Workbench later", "error");
+    }
+
+    root.querySelector("#start-run").onclick = async () => {
+      const symbol = root.querySelector("#run-symbol").value.trim().toUpperCase();
+      const tradeDate = root.querySelector("#run-date").value;
+      const progress = root.querySelector("#run-progress");
+      if (!symbol) {
+        setStatus("Enter a symbol first", "error");
+        return;
+      }
+      try {
+        root.querySelector("#start-run").disabled = true;
+        progress.textContent = "Queueing…";
+        setStatus(`Starting research for ${symbol}…`);
+        const created = await api("/v1/runs/start", {
+          method: "POST",
+          json: { symbol, trade_date: tradeDate || undefined },
+        });
+        progress.innerHTML = `<div class="mono">Queued ${escapeHtml(created.id)}</div>`;
+        await pollRun(created.id);
+      } catch (err) {
+        setStatus(err.message, "error");
+        progress.textContent = err.message;
+      } finally {
+        root.querySelector("#start-run").disabled = false;
+      }
+    };
 
     root.querySelector("#create-thesis").onclick = async () => {
       const runId = root.querySelector("#from-run").value.trim();
@@ -303,11 +385,13 @@
           json: { run_id: runId, stance: "initiate" },
         });
         setStatus(`Thesis proposal ${created.id || "created"}`, "ok");
-        await renderWorkbench();
+        await loadLists();
       } catch (err) {
         setStatus(err.message, "error");
       }
     };
+
+    await loadLists();
   }
 
   async function renderJournal() {
