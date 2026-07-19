@@ -155,6 +155,9 @@ def test_start_run_executes_with_fake_graph(client: TestClient, monkeypatch) -> 
     thesis = client.post(
         "/v1/theses/from-run",
         headers=_headers(),
-        json={"run_id": body["id"], "stance": "manage"},
+        json={"run_id": body["id"], "stance": "manage", "accept": True},
     )
     assert thesis.status_code == 201, thesis.text
+    assert thesis.json()["status"] == "accepted"
+    listed = client.get("/v1/theses", headers=_headers())
+    assert any(t["symbol"] == "NVDA" for t in listed.json())

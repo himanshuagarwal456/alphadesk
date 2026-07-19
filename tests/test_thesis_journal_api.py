@@ -75,7 +75,7 @@ def test_create_from_run_propose_reject_accept(client: TestClient):
     proposed = client.post(
         "/v1/theses/from-run",
         headers=_headers(),
-        json={"run_id": run_id, "stance": "initiate"},
+        json={"run_id": run_id, "stance": "initiate", "accept": False},
     )
     assert proposed.status_code == 201
     proposal = proposed.json()
@@ -100,7 +100,7 @@ def test_create_from_run_propose_reject_accept(client: TestClient):
     again = client.post(
         "/v1/theses/from-run",
         headers=_headers(),
-        json={"run_id": run_id, "stance": "initiate", "reason": "retry"},
+        json={"run_id": run_id, "stance": "initiate", "reason": "retry", "accept": False},
     )
     proposal2 = again.json()
     edited = dict(proposal2["snapshot"])
@@ -130,13 +130,9 @@ def test_revision_diff_and_evidence_selection(client: TestClient):
     p1 = client.post(
         "/v1/theses/from-run",
         headers=_headers(),
-        json={"run_id": run_id},
+        json={"run_id": run_id, "accept": True},
     ).json()
-    client.post(
-        f"/v1/theses/NVDA/proposals/{p1['id']}/review",
-        headers=_headers(),
-        json={"accept": True},
-    )
+    assert p1["status"] == "accepted"
     # Propose a second revision with different rating/evidence.
     snapshot = dict(p1["snapshot"])
     snapshot["snapshot_id"] = "th_NVDA_2026-07-19"
@@ -243,12 +239,8 @@ def test_cross_workspace_thesis_isolation(client: TestClient):
     proposal = client.post(
         "/v1/theses/from-run",
         headers=_headers("ws_owner"),
-        json={"run_id": run_id},
+        json={"run_id": run_id, "accept": True},
     ).json()
-    client.post(
-        f"/v1/theses/NVDA/proposals/{proposal['id']}/review",
-        headers=_headers("ws_owner"),
-        json={"accept": True},
-    )
+    assert proposal["status"] == "accepted"
     assert client.get("/v1/theses/NVDA", headers=_headers("ws_owner")).status_code == 200
     assert client.get("/v1/theses/NVDA", headers=_headers("ws_other")).status_code == 404

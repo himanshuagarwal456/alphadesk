@@ -1,10 +1,11 @@
 """``alphadesk-feed`` — build the portfolio-aware feed and open it in a browser.
 
-Two modes:
+Modes:
 
-- ``--demo``           build a sample feed (no API spend / network) to feel the UX.
-- default              build from saved runs under the configured ``results_dir``,
-                       optionally made portfolio-aware with ``--portfolio book.csv``.
+- ``--demo``             sample cards (no LLM). Pass ``--portfolio`` or
+                         ``--workspace`` so every holding appears in the desk brief.
+- default                build from saved runs under ``results_dir``, optionally
+                         portfolio-aware with ``--portfolio`` / ``--workspace``.
 """
 
 from __future__ import annotations
@@ -20,7 +21,39 @@ def _default_out() -> Path:
     return Path(DEFAULT_CONFIG["results_dir"]).expanduser() / "feed" / "feed.html"
 
 
-def _build_from_runs(results_dir: str | None, portfolio_csv: str | None):
+def _load_portfolio(portfolio_csv: str | None, workspace_id: str | None):
+    if portfolio_csv:
+        from tradingagents.portfolio import load_portfolio_from_csv
+
+        return load_portfolio_from_csv(portfolio_csv)
+
+    if not workspace_id:
+        return None
+
+    from tradingagents.persistence.repositories import (
+        PortfolioRepository,
+        PortfolioStateRepository,
+    )
+    from tradingagents.persistence.session import SessionFactory, create_engine_from_url
+    from tradingagents.persistence.settings import load_persistence_settings
+    from tradingagents.portfolio.service import CURRENT_SNAPSHOT_ID
+
+    settings = load_persistence_settings()
+    factory = SessionFactory(create_engine_from_url(settings.database_url))
+    with factory.session_scope() as session:
+        controls = PortfolioStateRepository(session).get_controls(workspace_id)
+        snapshot_id = controls.current_snapshot_id or CURRENT_SNAPSHOT_ID
+        book = PortfolioRepository(session).get(workspace_id, snapshot_id)
+        if book is None and snapshot_id != CURRENT_SNAPSHOT_ID:
+            book = PortfolioRepository(session).get(workspace_id, CURRENT_SNAPSHOT_ID)
+        return book
+
+
+def _build_from_runs(
+    results_dir: str | None,
+    portfolio_csv: str | None,
+    workspace_id: str | None,
+):
     from tradingagents.default_config import DEFAULT_CONFIG
     from tradingagents.thesis import LivingThesisStore
 
@@ -33,11 +66,7 @@ def _build_from_runs(results_dir: str | None, portfolio_csv: str | None):
     if not runs:
         return None, results_dir
 
-    portfolio = None
-    if portfolio_csv:
-        from tradingagents.portfolio import load_portfolio_from_csv
-
-        portfolio = load_portfolio_from_csv(portfolio_csv)
+    portfolio = _load_portfolio(portfolio_csv, workspace_id)
 
     ohlcv_map = {}
     for state in runs:
@@ -57,14 +86,28 @@ def _build_from_runs(results_dir: str | None, portfolio_csv: str | None):
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="alphadesk-feed",
-        description="Build the AlphaDesk portfolio-aware insight feed (FinTok).",
+        description="Build the AlphaDesk portfolio-aware insight feed.",
     )
-    parser.add_argument("--demo", action="store_true",
-                        help="Build a sample feed with no API/network access.")
-    parser.add_argument("--results-dir", default=None,
-                        help="Directory of saved runs (default: configured results_dir).")
-    parser.add_argument("--portfolio", default=None,
-                        help="Broker CSV export to make the feed portfolio-aware.")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Build a sample feed with no LLM. Uses portfolio when provided.",
+    )
+    parser.add_argument(
+        "--results-dir",
+        default=None,
+        help="Directory of saved runs (default: configured results_dir).",
+    )
+    parser.add_argument(
+        "--portfolio",
+        default=None,
+        help="Broker CSV export to make the feed cover your full book.",
+    )
+    parser.add_argument(
+        "--workspace",
+        default=None,
+        help="Load the current book from the durable workspace store (e.g. ws_local).",
+    )
     parser.add_argument("--out", default=None, help="Output HTML path.")
     parser.add_argument("--no-open", action="store_true", help="Do not open a browser.")
     args = parser.parse_args(argv)
@@ -72,19 +115,37 @@ def main(argv=None) -> int:
     if args.demo:
         from .sample import sample_feed
 
-        feed = sample_feed()
+        portfolio = _load_portfolio(args.portfolio, args.workspace)
+        feed = sample_feed(portfolio)
+        if portfolio is not None:
+            n = len(getattr(portfolio, "open_positions", []) or [])
+            print(f"Demo feed using portfolio with {n} open position(s)")
+        else:
+            print(
+                "Demo feed using the default 2-name sample. "
+                "Pass --portfolio book.csv or --workspace ws_local to cover your holdings."
+            )
     else:
-        feed, results_dir = _build_from_runs(args.results_dir, args.portfolio)
+        feed, results_dir = _build_from_runs(
+            args.results_dir, args.portfolio, args.workspace
+        )
         if feed is None:
-            print(f"No saved runs found in {results_dir}. "
-                  "Run an analysis first, or try `alphadesk-feed --demo`.")
+            print(
+                f"No saved runs found in {results_dir}. "
+                "Run an analysis first, or try `alphadesk-feed --demo --workspace ws_local`."
+            )
             return 1
 
     from .render import write_feed_html
 
     out = Path(args.out).expanduser() if args.out else _default_out()
     path = write_feed_html(feed, out)
-    print(f"Feed written to {path}  ({len(feed.narratives)} narrative(s))")
+    symbols = sorted({s for n in feed.narratives for s in n.symbols})
+    print(
+        f"Feed written to {path}  "
+        f"({len(feed.narratives)} stor{'y' if len(feed.narratives)==1 else 'ies'}, "
+        f"{len(symbols)} symbol(s))"
+    )
     if not args.no_open:
         webbrowser.open(path.as_uri())
     return 0

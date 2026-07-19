@@ -128,6 +128,25 @@ def test_sample_feed_desk_brief_then_themes():
     assert {"NVDA", "AAPL"} <= all_syms
 
 
+def test_sample_feed_covers_full_portfolio_book():
+    from tradingagents.portfolio.schemas import Portfolio, Position
+
+    book = Portfolio(
+        as_of="2026-07-19",
+        positions=[
+            Position(symbol="NVDA", quantity=100, avg_cost=100, current_price=200),
+            Position(symbol="AAPL", quantity=50, avg_cost=150, current_price=180),
+            Position(symbol="MSFT", quantity=20, avg_cost=300, current_price=400),
+            Position(symbol="GLD", quantity=10, avg_cost=200, current_price=370),
+        ],
+    )
+    feed = sample_feed(book, as_of="2026-07-19")
+    lead = feed.narratives[0]
+    assert lead.meta.get("story_kind") == "desk_brief"
+    for sym in ("NVDA", "AAPL", "MSFT", "GLD"):
+        assert sym in lead.symbols
+
+
 # --- rendering ------------------------------------------------------------
 
 def test_render_feed_html_embeds_deck():

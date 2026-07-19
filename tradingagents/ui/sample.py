@@ -1,11 +1,14 @@
 """Deterministic sample data so the feed can be demoed/tested without a live run.
 
-``sample_feed()`` builds a multi-story feed (desk brief + theme arcs) from
-synthetic OHLCV and canned ``final_state`` dicts, so `alphadesk-feed --demo`
-shows the full UX with no API spend or network.
+``sample_feed()`` builds a multi-story feed (desk brief + theme arcs). When a
+real ``Portfolio`` is passed, every open holding gets a synthetic run so the
+desk brief reflects the full book — not just two demo tickers.
 """
 
 from __future__ import annotations
+
+import hashlib
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -14,6 +17,15 @@ from tradingagents.evidence import Evidence
 
 from .deck_builder import build_feed
 from .feed_schema import Feed
+
+_RATING_CYCLE = ("Underweight", "Hold", "Buy", "Overweight", "Sell", "Hold")
+_SENTIMENT = {
+    "Sell": ("Bearish", 2.4),
+    "Underweight": ("Bearish", 3.2),
+    "Hold": ("Neutral", 5.1),
+    "Overweight": ("Bullish", 6.8),
+    "Buy": ("Bullish", 7.4),
+}
 
 
 def sample_ohlcv(days: int = 120, start_price: float = 140.0, trend: float = 0.15) -> pd.DataFrame:
@@ -39,15 +51,21 @@ def sample_final_state(
     sentiment_score: float = 3.2,
     target: float = 120.0,
     stop: float = 132.0,
+    trade_date: str = "2026-01-15",
 ) -> dict:
     """A canned run state shaped like a real ``final_state``."""
     state = {
         "company_of_interest": symbol,
-        "trade_date": "2026-01-15",
+        "trade_date": trade_date,
         "market_report": (
             f"{symbol} broke below its 50-day moving average on above-average volume, "
             "a bearish signal. RSI is rolling over from overbought territory and MACD "
             "has crossed negative."
+            if rating in {"Sell", "Underweight"}
+            else (
+                f"{symbol} is holding above a rising 50-day average with improving "
+                "breadth; MACD turned positive."
+            )
         ),
         "sentiment_report": (
             f"**Overall Sentiment:** **{sentiment_band}** (Score: {sentiment_score:.1f}/10)\n"
@@ -87,6 +105,16 @@ def sample_final_state(
             "outweigh the secular growth story on a 1–3 month horizon.\n\n"
             f"**Price Target**: {target:.0f}\n\n**Time Horizon**: 1-3 months"
         ),
+        "portfolio_decision_struct": {
+            "rating": rating,
+            "executive_summary": f"{symbol}: desk rates {rating}.",
+            "investment_thesis": f"Synthetic thesis for {symbol} in the demo feed.",
+            "price_target": target,
+            "time_horizon": "1-3 months",
+            "catalysts": ["Earnings"],
+            "invalidation_conditions": ["Thesis breaks on guidance cut"],
+            "invalidation_triggered": False,
+        },
     }
     state["evidence"] = [
         Evidence(
@@ -111,14 +139,78 @@ def sample_final_state(
     return state
 
 
-def sample_feed() -> Feed:
-    """Desk brief + theme stories from a held bearish name and a bullish candidate."""
-    nvda = sample_final_state("NVDA", rating="Underweight", sentiment_band="Bearish",
-                              sentiment_score=3.2, target=120.0, stop=132.0)
-    aapl = sample_final_state("AAPL", rating="Buy", sentiment_band="Bullish",
-                              sentiment_score=7.4, target=245.0, stop=205.0)
-    aapl["market_report"] = ("AAPL is holding above a rising 50-day average with improving "
-                             "breadth; MACD turned positive.")
+def _rating_for_symbol(symbol: str) -> str:
+    digest = int(hashlib.sha256(symbol.encode()).hexdigest()[:8], 16)
+    return _RATING_CYCLE[digest % len(_RATING_CYCLE)]
+
+
+def _runs_for_portfolio(portfolio: Any, *, trade_date: str) -> tuple[list[dict], dict]:
+    """One synthetic run + OHLCV series per open position."""
+    runs: list[dict] = []
+    ohlcv_map: dict = {}
+    positions = getattr(portfolio, "open_positions", None)
+    if positions is None:
+        positions = getattr(portfolio, "positions", []) or []
+    for idx, pos in enumerate(positions):
+        symbol = str(getattr(pos, "symbol", "") or "").upper()
+        if not symbol:
+            continue
+        rating = _rating_for_symbol(symbol)
+        band, score = _SENTIMENT[rating]
+        price = getattr(pos, "current_price", None) or 100.0
+        target = float(price) * (1.12 if rating in {"Buy", "Overweight"} else 0.88)
+        stop = float(price) * 0.94
+        runs.append(
+            sample_final_state(
+                symbol,
+                rating=rating,
+                sentiment_band=band,
+                sentiment_score=score,
+                target=round(target, 2),
+                stop=round(stop, 2),
+                trade_date=trade_date,
+            )
+        )
+        trend = 0.2 if rating in {"Buy", "Overweight"} else -0.05
+        ohlcv_map[symbol] = sample_ohlcv(
+            start_price=float(price) * 0.85, trend=trend
+        )
+        # Keep deterministic variety if many names share similar prices.
+        _ = idx
+    return runs, ohlcv_map
+
+
+def sample_feed(portfolio: Any = None, *, as_of: str = "2026-01-15") -> Feed:
+    """Desk brief + theme stories.
+
+    Pass a real :class:`~tradingagents.portfolio.schemas.Portfolio` to cover
+    every holding. Without one, falls back to the two-name NVDA/AAPL demo.
+    """
+    if portfolio is not None and getattr(portfolio, "open_positions", None):
+        runs, ohlcv_map = _runs_for_portfolio(portfolio, trade_date=as_of)
+        if runs:
+            return build_feed(
+                runs, portfolio=portfolio, ohlcv_map=ohlcv_map, as_of=as_of
+            )
+
+    nvda = sample_final_state(
+        "NVDA",
+        rating="Underweight",
+        sentiment_band="Bearish",
+        sentiment_score=3.2,
+        target=120.0,
+        stop=132.0,
+        trade_date=as_of,
+    )
+    aapl = sample_final_state(
+        "AAPL",
+        rating="Buy",
+        sentiment_band="Bullish",
+        sentiment_score=7.4,
+        target=245.0,
+        stop=205.0,
+        trade_date=as_of,
+    )
 
     class _Book:
         """Minimal portfolio stand-in: NVDA is held at 22% of the book."""
@@ -129,10 +221,16 @@ def sample_feed() -> Feed:
         def weights(self):
             return {"NVDA": 0.22}
 
+        @property
+        def open_positions(self):
+            return []
+
     return build_feed(
         [nvda, aapl],
-        portfolio=_Book(),
-        ohlcv_map={"NVDA": sample_ohlcv(start_price=140, trend=-0.05),
-                   "AAPL": sample_ohlcv(start_price=210, trend=0.2)},
-        as_of="2026-01-15",
+        portfolio=portfolio or _Book(),
+        ohlcv_map={
+            "NVDA": sample_ohlcv(start_price=140, trend=-0.05),
+            "AAPL": sample_ohlcv(start_price=210, trend=0.2),
+        },
+        as_of=as_of,
     )

@@ -25,6 +25,14 @@ class FromRunRequest(BaseModel):
     run_id: str = Field(min_length=1)
     stance: str = ""
     reason: str = "Created from completed research run"
+    accept: bool = Field(
+        default=True,
+        description=(
+            "When true (default), apply the thesis immediately. "
+            "The Create thesis button is an explicit user action. "
+            "Set false to leave a pending proposal only."
+        ),
+    )
 
 
 class ProposeRequest(BaseModel):
@@ -58,9 +66,16 @@ def create_thesis_from_run(
 ) -> ProposedRevision:
     service = ThesisWorkflowService(session, workspace_id=workspace_id)
     try:
-        return service.propose_from_run(
+        proposal = service.propose_from_run(
             body.run_id, stance=body.stance, reason=body.reason
         )
+        if body.accept:
+            return service.review(
+                proposal.id,
+                accept=True,
+                note="Accepted via create-from-run",
+            )
+        return proposal
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

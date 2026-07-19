@@ -276,11 +276,34 @@
         <div class="panel">
           <h2 style="margin:0 0 .75rem;font-family:var(--font-display);font-size:1.25rem;">Theses</h2>
           <div id="theses" class="list"></div>
-          <div class="form-row field" style="margin-top:1rem;"><label for="from-run">Create thesis from run id</label><input id="from-run" placeholder="ar_…" /></div>
-          <div class="actions"><button type="button" class="btn-primary" id="create-thesis">Create from run</button></div>
+          <div id="thesis-result" class="meta" style="margin-top:.75rem;"></div>
         </div>
       </div>
     </div>`;
+
+    async function createThesisFromRun(runId) {
+      const resultEl = root.querySelector("#thesis-result");
+      if (!runId) {
+        setStatus("No run selected", "error");
+        return;
+      }
+      try {
+        setStatus(`Creating thesis from ${runId}…`);
+        resultEl.textContent = "Creating…";
+        const created = await api("/v1/theses/from-run", {
+          method: "POST",
+          json: { run_id: runId, accept: true },
+        });
+        const rating = created.snapshot?.rating || "—";
+        const symbol = created.symbol || "—";
+        resultEl.innerHTML = `<strong>${escapeHtml(symbol)}</strong> thesis ${escapeHtml(created.status)} · ${escapeHtml(rating)}<div class="mono">${escapeHtml(created.id || "")}</div>`;
+        setStatus(`Thesis saved for ${symbol} (${rating})`, "ok");
+        await loadLists();
+      } catch (err) {
+        resultEl.textContent = err.message;
+        setStatus(err.message, "error");
+      }
+    }
 
     async function loadLists() {
       const runs = await api("/v1/runs?limit=40");
@@ -293,7 +316,7 @@
                 <div class="meta">${escapeHtml(r.trade_date)} · ${escapeHtml(r.status)} · ${escapeHtml(r.final_rating || "no rating")}</div>
                 <div class="mono">${escapeHtml(r.id)}</div>
                 <div class="actions">
-                  <button type="button" class="btn" data-thesis="${escapeHtml(r.id)}" ${r.status === "completed" ? "" : "disabled"}>Create thesis</button>
+                  <button type="button" class="btn-primary" data-thesis="${escapeHtml(r.id)}" ${r.status === "completed" ? "" : "disabled"}>Create thesis</button>
                 </div>
               </article>`
             )
@@ -301,10 +324,7 @@
         : empty("No durable runs yet. Use Run research above.");
 
       runsEl.querySelectorAll("[data-thesis]").forEach((btn) => {
-        btn.onclick = async () => {
-          root.querySelector("#from-run").value = btn.dataset.thesis;
-          root.querySelector("#create-thesis").click();
-        };
+        btn.onclick = () => createThesisFromRun(btn.dataset.thesis);
       });
 
       const theses = await api("/v1/theses");
@@ -314,11 +334,11 @@
             .map(
               (t) => `<article class="row">
                 <strong>${escapeHtml(t.symbol || t.id)}</strong>
-                <div class="meta">${escapeHtml(t.status || "active")} · snapshot ${escapeHtml(t.current_snapshot_id || "—")}</div>
+                <div class="meta">${escapeHtml(t.status || "active")} · ${escapeHtml(t.current?.rating || t.current?.executive_summary || t.current_snapshot_id || "—")}</div>
               </article>`
             )
             .join("")
-        : empty("No theses yet.");
+        : empty("No theses yet. Finish a run, then Create thesis.");
     }
 
     async function pollRun(runId) {
@@ -338,7 +358,6 @@
         if (terminal.has(run.status)) {
           if (run.status === "completed") {
             setStatus(`Research complete: ${run.symbol} → ${run.final_rating || "done"}`, "ok");
-            root.querySelector("#from-run").value = run.id;
           } else {
             setStatus(run.error || `Run ${run.status}`, "error");
           }
@@ -373,21 +392,6 @@
         progress.textContent = err.message;
       } finally {
         root.querySelector("#start-run").disabled = false;
-      }
-    };
-
-    root.querySelector("#create-thesis").onclick = async () => {
-      const runId = root.querySelector("#from-run").value.trim();
-      if (!runId) return;
-      try {
-        const created = await api("/v1/theses/from-run", {
-          method: "POST",
-          json: { run_id: runId, stance: "initiate" },
-        });
-        setStatus(`Thesis proposal ${created.id || "created"}`, "ok");
-        await loadLists();
-      } catch (err) {
-        setStatus(err.message, "error");
       }
     };
 

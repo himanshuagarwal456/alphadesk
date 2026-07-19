@@ -150,11 +150,38 @@ class ThesisWorkflowService:
         stance: str = "",
         reason: str = "AI proposal from research run",
     ) -> ProposedRevision:
+        run = self._runs.get(self._workspace_id, run_id)
+        if run is None:
+            raise KeyError("run not found")
+        resolved_stance = stance.strip()
+        if not resolved_stance:
+            resolved_stance = self._infer_stance(run.symbol)
         result = self.create_from_run(
-            run_id, stance=stance, as_proposal=True, reason=reason
+            run_id, stance=resolved_stance, as_proposal=True, reason=reason
         )
         assert isinstance(result, ProposedRevision)
         return result
+
+    def _infer_stance(self, symbol: str) -> str:
+        """Held names manage; everything else initiate."""
+        from tradingagents.persistence.repositories.portfolios import PortfolioRepository
+        from tradingagents.persistence.repositories.state import PortfolioStateRepository
+        from tradingagents.portfolio.service import CURRENT_SNAPSHOT_ID
+
+        controls = PortfolioStateRepository(self._session).get_controls(
+            self._workspace_id
+        )
+        snapshot_id = controls.current_snapshot_id or CURRENT_SNAPSHOT_ID
+        book = PortfolioRepository(self._session).get(
+            self._workspace_id, snapshot_id
+        )
+        if book is None and snapshot_id != CURRENT_SNAPSHOT_ID:
+            book = PortfolioRepository(self._session).get(
+                self._workspace_id, CURRENT_SNAPSHOT_ID
+            )
+        if book is not None and book.holds(symbol):
+            return "manage"
+        return "initiate"
 
     def edit_current(
         self,
