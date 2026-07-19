@@ -1,19 +1,9 @@
-"""AlphaDesk feed UI ("FinTok"): agents generate knowledge, we visualise it and
-disseminate it in a portfolio-aware vertical feed.
+"""AlphaDesk feed UI: agents generate knowledge; we turn it into story posts.
 
-Pipeline: a completed agent run (``final_state``) -> :mod:`.deck_builder` turns
-its structured knowledge into a :class:`~tradingagents.ui.feed_schema.Narrative`
-(an album of chart cards) -> :mod:`.render` lays narratives out as a two-axis
-scroll-snap feed (vertical = narratives ranked by dominance, horizontal = the
-card arc: hook -> evidence -> tension -> verdict).
-
-Public surface:
-
-- ``Feed`` / ``Narrative`` / ``Card`` / ``CardKind`` — the feed contract
-- ``build_feed`` / ``build_narrative``                — run knowledge -> feed
-- ``render_feed_html`` / ``write_feed_html``          — feed -> self-contained HTML
-- ``load_saved_runs``                                 — load past runs from disk
-- ``sample_feed``                                     — a demo feed (no network)
+Pipeline: completed runs -> :mod:`.deck_builder` composes a desk brief plus
+multi-symbol theme stories -> :mod:`.render` lays them out as a social-style
+feed (vertical = distinguishable posts, horizontal = full story arc with
+affected tickers).
 """
 
 from .deck_builder import build_feed, build_narrative, compute_dominance

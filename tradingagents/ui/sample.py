@@ -1,8 +1,8 @@
 """Deterministic sample data so the feed can be demoed/tested without a live run.
 
-``sample_feed()`` builds a two-narrative feed from synthetic OHLCV and canned
-``final_state`` dicts shaped exactly like a real run, so `alphadesk-feed --demo`
-shows the full UX (charts, arc, ranking) with no API spend or network.
+``sample_feed()`` builds a multi-story feed (desk brief + theme arcs) from
+synthetic OHLCV and canned ``final_state`` dicts, so `alphadesk-feed --demo`
+shows the full UX with no API spend or network.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ def sample_final_state(
 
 
 def sample_feed() -> Feed:
-    """A two-narrative demo feed (one bearish held name, one bullish candidate)."""
+    """Desk brief + theme stories from a held bearish name and a bullish candidate."""
     nvda = sample_final_state("NVDA", rating="Underweight", sentiment_band="Bearish",
                               sentiment_score=3.2, target=120.0, stop=132.0)
     aapl = sample_final_state("AAPL", rating="Buy", sentiment_band="Bullish",

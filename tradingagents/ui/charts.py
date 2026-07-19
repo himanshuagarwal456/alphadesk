@@ -32,6 +32,10 @@ _RATING_COLOR = {
 }
 
 _DARK = "#0e1117"
+_PAPER = "#f7f4ec"
+_INK = "#1a221c"
+_MUTED = "#5c6a60"
+_PLOT = "#fffdf8"
 
 
 def _col(df: pd.DataFrame, name: str) -> pd.Series:
@@ -49,10 +53,11 @@ def close_series(df: pd.DataFrame) -> pd.Series:
 
 def _base_layout(fig: go.Figure, title: str = "") -> go.Figure:
     fig.update_layout(
-        title=title or None,
-        template="plotly_dark",
-        paper_bgcolor=_DARK,
-        plot_bgcolor=_DARK,
+        title={"text": title, "font": {"color": _INK, "size": 14}} if title else None,
+        template="plotly_white",
+        paper_bgcolor=_PAPER,
+        plot_bgcolor=_PLOT,
+        font={"color": _INK},
         margin={"l": 8, "r": 8, "t": 36 if title else 8, "b": 8},
         showlegend=False,
         xaxis_rangeslider_visible=False,
@@ -193,3 +198,44 @@ def rating_dial(rating: str) -> go.Figure:
         },
     ))
     return _base_layout(fig)
+
+
+def book_impact_bars(
+    rows: list[dict],
+    *,
+    title: str = "Affected names",
+) -> go.Figure:
+    """Horizontal bars of portfolio weight, colored by rating.
+
+    Each row: ``{"symbol": str, "weight": float|None, "rating": str|None}``.
+    """
+    if not rows:
+        fig = go.Figure()
+        return _base_layout(fig, title)
+
+    symbols = [str(r.get("symbol") or "?").upper() for r in rows]
+    weights = [float(r.get("weight") or 0.0) * 100.0 for r in rows]
+    colors = [
+        _RATING_COLOR.get(str(r.get("rating") or "").strip().lower(), "#7f7f7f")
+        for r in rows
+    ]
+    labels = [
+        f"{(r.get('rating') or '—')} · {float(r.get('weight') or 0.0) * 100:.0f}%"
+        for r in rows
+    ]
+    fig = go.Figure(
+        go.Bar(
+            x=weights,
+            y=symbols,
+            orientation="h",
+            marker_color=colors,
+            text=labels,
+            textposition="auto",
+            hovertemplate="%{y}<br>%{x:.1f}% of book<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        xaxis_title="% of book",
+        yaxis={"autorange": "reversed"},
+    )
+    return _base_layout(fig, title)

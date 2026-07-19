@@ -1,17 +1,14 @@
-"""The feed contract: ``Feed`` -> ``Narrative`` -> ``Card``.
+"""The feed contract: ``Feed`` -> ``Narrative`` (story) -> ``Card``.
 
-This is the stable hand-off between the Python side (agents generate knowledge,
-the deck builder turns it into cards) and the front-end (renders a swipeable
-feed). Everything the UI needs is here and JSON-serialisable, so the renderer —
-today a self-contained HTML page, tomorrow a React app — only ever consumes this
-contract.
+Layout maps onto a two-axis UX inspired by social feeds:
 
-Layout maps directly onto the two-axis UX:
+- **Vertical scroll = stories.** Each story is a distinct post block
+  (desk brief, theme, or multi-name cluster), ranked by ``dominance``.
+- **Horizontal scroll = cards.** The album tells one complete arc:
+  high-level commentary -> who is affected -> evidence -> tension -> verdict.
 
-- **Vertical scroll = narratives.** ``Feed.narratives`` is ordered by
-  ``dominance`` (highest first), so the loudest story leads.
-- **Horizontal scroll = cards.** ``Narrative.cards`` is the album/carousel that
-  builds one story as an arc: hook -> evidence -> tension -> verdict.
+Stories are **not** one-per-symbol. A single narrative can cover several
+tickers; ``symbols`` lists every name the story touches.
 """
 
 from __future__ import annotations
@@ -19,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from tradingagents.evidence import Evidence
 
@@ -30,11 +27,11 @@ from .visualization_intent import VisualizationIntent
 class CardKind(str, Enum):
     """Where a card sits in the narrative arc (drives styling + ordering)."""
 
-    HOOK = "hook"          # the narrative in one visual — the scroll-stopper
-    CONTEXT = "context"    # supporting backdrop (e.g. the price chart)
-    EVIDENCE = "evidence"  # an analyst finding that supports the thesis
-    TENSION = "tension"    # bull vs bear / risk — the conflict
-    VERDICT = "verdict"    # the decision + what it means for your book
+    HOOK = "hook"  # high-level commentary — the scroll-stopper
+    CONTEXT = "context"  # who is affected / book framing
+    EVIDENCE = "evidence"  # supporting findings
+    TENSION = "tension"  # conflict / bull vs bear
+    VERDICT = "verdict"  # what to do next
 
 
 class Card(BaseModel):
@@ -42,16 +39,20 @@ class Card(BaseModel):
 
     id: str
     kind: CardKind
-    title: str = Field(description="Short label, e.g. 'Market', 'Sentiment', 'Verdict'.")
+    title: str = Field(description="Short label, e.g. 'Desk brief', 'Affected', 'Verdict'.")
     headline: str = Field(description="The 1–2 line hook shown large on the card.")
     body: str = Field(default="", description="Longer text revealed on expand/tap.")
     badges: list[str] = Field(
         default_factory=list,
-        description="Short chips, e.g. 'Underweight', '18% of book', 'Risk-Off'.",
+        description="Short chips, e.g. 'Underweight', '18% of book', 'NVDA'.",
+    )
+    symbols: list[str] = Field(
+        default_factory=list,
+        description="Tickers this card specifically references.",
     )
     chart: dict | None = Field(
         default=None,
-        description="A Plotly figure as a plain dict (figure.to_dict()); None for text-only cards.",
+        description="A Plotly figure as a plain dict (figure.to_json()); None for text-only.",
     )
     card_type: str | None = Field(
         default=None,
@@ -70,23 +71,51 @@ class Card(BaseModel):
 
 
 class Narrative(BaseModel):
-    """A single story (v1: one per name) rendered as a horizontal album of cards."""
+    """One vertical feed post: a complete story that may span many symbols."""
 
     id: str
-    symbol: str
-    title: str = Field(description="Headline of the narrative, e.g. 'NVDA — verdict: Underweight'.")
-    summary: str = Field(default="", description="One-liner describing the story.")
+    title: str = Field(description="Story headline, e.g. 'Desk brief — trim three held names'.")
+    summary: str = Field(default="", description="One-liner under the title.")
+    symbols: list[str] = Field(
+        default_factory=list,
+        description="Every ticker this story affects (chips in the post header).",
+    )
+    symbol: str = Field(
+        default="",
+        description="Primary symbol when the story is single-name; else empty.",
+    )
     dominance: float = Field(
         default=0.0,
         description="Vertical-rank score; higher surfaces earlier in the feed.",
     )
     badges: list[str] = Field(default_factory=list)
     cards: list[Card] = Field(default_factory=list)
-    meta: dict = Field(default_factory=dict, description="trade_date, stance, held, etc.")
+    meta: dict = Field(
+        default_factory=dict,
+        description="story_kind, trade_date, held_count, etc.",
+    )
+
+    @model_validator(mode="after")
+    def _normalize_symbols(self) -> Narrative:
+        merged = list(self.symbols)
+        if self.symbol:
+            merged.insert(0, self.symbol.strip().upper())
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for raw in merged:
+            sym = str(raw).strip().upper()
+            if not sym or sym in seen:
+                continue
+            seen.add(sym)
+            cleaned.append(sym)
+        self.symbols = cleaned
+        if not self.symbol and len(cleaned) == 1:
+            self.symbol = cleaned[0]
+        return self
 
 
 class Feed(BaseModel):
-    """The whole feed: narratives ordered by dominance (loudest first)."""
+    """The whole feed: stories ordered by dominance (loudest first)."""
 
     as_of: str | None = None
     generated_at: str = Field(
@@ -95,6 +124,6 @@ class Feed(BaseModel):
     narratives: list[Narrative] = Field(default_factory=list)
 
     def ranked(self) -> Feed:
-        """Return a copy with narratives sorted by dominance descending (stable)."""
+        """Return a copy with stories sorted by dominance descending (stable)."""
         ordered = sorted(self.narratives, key=lambda n: n.dominance, reverse=True)
         return self.model_copy(update={"narratives": ordered})

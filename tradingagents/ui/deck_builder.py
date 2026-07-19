@@ -1,17 +1,9 @@
-"""Turn a completed agent run into a feed narrative (v1: one per name).
+"""Turn completed agent runs into a social-style story feed.
 
-The agents already emit their knowledge into the run's ``final_state`` (analyst
-reports, the bull/bear debate, the risk debate, the Portfolio Manager's rating).
-This module reads that structured knowledge, extracts the few hard signals worth
-visualising (rating, sentiment score, price target/stop), and assembles the
-narrative arc:
-
-    hook -> market -> sentiment -> fundamentals -> tension (bull/bear) -> verdict
-
-Each card carries a Plotly figure (as a JSON-safe dict) and a one–two line hook.
-Portfolio awareness threads through as framing ("18% of book") and as the
-dominance score that ranks the vertical feed. Everything here is pure: given the
-same ``final_state`` (+ portfolio + OHLCV) it produces the same narrative.
+Each vertical post is a distinguishable story (desk brief or multi-name theme),
+not one feed item per symbol. The horizontal album opens with high-level
+commentary, then walks evidence/tension/verdict while naming every affected
+ticker.
 """
 
 from __future__ import annotations
@@ -339,14 +331,19 @@ def build_narrative(
     )
     stance = "manage" if held else "initiate"
     return Narrative(
-        id=f"{symbol}-{trade_date}", symbol=symbol,
+        id=f"{symbol}-{trade_date}",
+        symbol=symbol,
+        symbols=[symbol],
         title=f"{symbol} — {rating}" if rating else symbol,
         summary=_first_sentence(verdict_md) or f"Latest read on {symbol}",
-        dominance=dominance, badges=badges, cards=cards,
+        dominance=dominance,
+        badges=badges,
+        cards=cards,
         meta={
             "trade_date": trade_date,
             "stance": stance,
             "held": held,
+            "story_kind": "single_name",
             "source_quality_score": source_quality,
             "freshness_score": freshness,
         },
@@ -429,14 +426,319 @@ def build_feed(
     as_of: str | None = None,
     thesis_store: LivingThesisStore | None = None,
 ) -> Feed:
-    """Build a dominance-ranked feed from one or more completed runs."""
+    """Build a story feed: desk brief first, then multi-symbol theme arcs.
+
+    Vertical posts are distinguishable stories (not one-per-ticker). Each story
+    opens with high-level commentary, then horizontal cards walk the evidence
+    and list every affected symbol.
+    """
     ohlcv_map = ohlcv_map or {}
-    narratives = [
+    units = [
         build_narrative(
-            state, portfolio=portfolio,
+            state,
+            portfolio=portfolio,
             ohlcv=ohlcv_map.get((state.get("company_of_interest") or "").upper()),
             thesis_store=thesis_store,
         )
         for state in runs
     ]
-    return Feed(as_of=as_of, narratives=narratives).ranked()
+    if not units:
+        return Feed(as_of=as_of, narratives=[])
+
+    stories = [_build_desk_brief(units, portfolio=portfolio, as_of=as_of)]
+
+    trim = [
+        u for u in units if u.meta.get("held") and _unit_rating(u) in {"Sell", "Underweight"}
+    ]
+    add = [u for u in units if _unit_rating(u) in {"Buy", "Overweight"}]
+    watch = [u for u in units if u not in trim and u not in add]
+
+    if trim:
+        stories.append(
+            _build_theme_story(
+                units=trim,
+                story_id="theme-trim",
+                title="Protect the book",
+                kind="trim",
+                lead="Held names where the desk is cutting risk.",
+                as_of=as_of,
+            )
+        )
+    if add:
+        stories.append(
+            _build_theme_story(
+                units=add,
+                story_id="theme-add",
+                title="Where conviction leans bullish",
+                kind="opportunity",
+                lead="Names the desk wants more of — held or new.",
+                as_of=as_of,
+            )
+        )
+    if watch and not (trim or add):
+        # Only emit a quiet hold story when nothing else clustered.
+        stories.append(
+            _build_theme_story(
+                units=watch,
+                story_id="theme-hold",
+                title="Steady book",
+                kind="hold",
+                lead="No aggressive re-rating — monitor and keep powder dry.",
+                as_of=as_of,
+            )
+        )
+    elif watch and len(watch) >= 2:
+        stories.append(
+            _build_theme_story(
+                units=watch,
+                story_id="theme-monitor",
+                title="Watchlist / holds",
+                kind="monitor",
+                lead="Secondary names with less urgent action.",
+                as_of=as_of,
+            )
+        )
+
+    return Feed(as_of=as_of, narratives=stories).ranked()
+
+
+def _unit_rating(unit: Narrative) -> str | None:
+    for badge in unit.badges:
+        if badge.lower() in _RATING_VALUE:
+            return badge.capitalize() if badge.lower() != "underweight" else "Underweight"
+    # badges may already be Title case
+    for badge in unit.badges:
+        if badge in {"Buy", "Overweight", "Hold", "Underweight", "Sell"}:
+            return badge
+    return None
+
+
+def _impact_rows(units: list[Narrative]) -> list[dict]:
+    rows = []
+    for unit in units:
+        weight = None
+        for badge in unit.badges:
+            if "of book" in badge:
+                try:
+                    weight = float(badge.split("%")[0]) / 100.0
+                except ValueError:
+                    weight = None
+        rows.append(
+            {
+                "symbol": unit.symbol or (unit.symbols[0] if unit.symbols else "?"),
+                "weight": weight if unit.meta.get("held") else 0.0,
+                "rating": _unit_rating(unit),
+            }
+        )
+    # Sort held/heavier first
+    return sorted(rows, key=lambda r: (-(r["weight"] or 0.0), r["symbol"]))
+
+
+def _build_desk_brief(
+    units: list[Narrative],
+    *,
+    portfolio: Any,
+    as_of: str | None,
+) -> Narrative:
+    rows = _impact_rows(units)
+    symbols = [r["symbol"] for r in rows]
+    held_n = sum(1 for u in units if u.meta.get("held"))
+    trim_n = sum(1 for u in units if _unit_rating(u) in {"Sell", "Underweight"})
+    buy_n = sum(1 for u in units if _unit_rating(u) in {"Buy", "Overweight"})
+    book_pct = sum((r["weight"] or 0.0) for r in rows if (r["weight"] or 0) > 0)
+
+    headline = (
+        f"{len(units)} names researched · {held_n} held · "
+        f"{trim_n} risk-off · {buy_n} bullish"
+    )
+    body_lines = [
+        f"As of {as_of or 'today'}: desk brief across the latest runs.",
+        f"Covered symbols: {', '.join(symbols)}.",
+    ]
+    if portfolio is not None and book_pct > 0:
+        body_lines.append(
+            f"Affected held exposure ≈ {book_pct * 100:.0f}% of the book."
+        )
+    for r in rows:
+        tag = "held" if (r["weight"] or 0) > 0 else "watch"
+        body_lines.append(
+            f"- {r['symbol']}: {r['rating'] or 'n/a'} ({tag}"
+            + (f", {r['weight']*100:.0f}% of book)" if r["weight"] else ")")
+        )
+
+    chart = _fig_to_dict(charts.book_impact_bars(rows, title="Book impact by name"))
+    cards = [
+        Card(
+            id="desk-hook",
+            kind=CardKind.HOOK,
+            title="Desk brief",
+            headline=headline,
+            body="\n".join(body_lines),
+            badges=["Desk", f"{len(symbols)} symbols"],
+            symbols=symbols,
+            chart=chart,
+            card_type="portfolio_impact",
+            portfolio_impact=(
+                f"{held_n} held names in this brief"
+                + (f"; ~{book_pct*100:.0f}% of book" if book_pct else "")
+            ),
+        ),
+        Card(
+            id="desk-affected",
+            kind=CardKind.CONTEXT,
+            title="Affected",
+            headline="Who this brief touches",
+            body="\n".join(
+                (
+                    f"{r['symbol']}: {r['rating'] or '—'} · "
+                    + (
+                        f"held {r['weight'] * 100:.0f}%"
+                        if r["weight"]
+                        else "not held"
+                    )
+                )
+                for r in rows
+            ),
+            badges=symbols,
+            symbols=symbols,
+            chart=chart,
+        ),
+        Card(
+            id="desk-verdict",
+            kind=CardKind.VERDICT,
+            title="Next",
+            headline=(
+                "Swipe the stories below for full arcs — "
+                "trim themes first when risk-off names are held."
+                if trim_n
+                else "Swipe into theme stories for the full evidence arc."
+            ),
+            badges=[f"{trim_n} trim", f"{buy_n} add"],
+            symbols=symbols,
+            portfolio_impact="Start with the highest-dominance theme post.",
+        ),
+    ]
+    return Narrative(
+        id=f"desk-brief-{as_of or 'latest'}",
+        title="Desk brief",
+        summary=headline,
+        symbols=symbols,
+        dominance=100.0,  # always lead the feed
+        badges=["Overview", f"{len(symbols)} names"],
+        cards=cards,
+        meta={"story_kind": "desk_brief", "trade_date": as_of, "held_count": held_n},
+    )
+
+
+def _build_theme_story(
+    *,
+    units: list[Narrative],
+    story_id: str,
+    title: str,
+    kind: str,
+    lead: str,
+    as_of: str | None,
+) -> Narrative:
+    rows = _impact_rows(units)
+    symbols = [r["symbol"] for r in rows]
+    dominance = max((u.dominance for u in units), default=0.0) + 0.5 * len(units)
+
+    hook = Card(
+        id=f"{story_id}-hook",
+        kind=CardKind.HOOK,
+        title="Story",
+        headline=f"{title}: {', '.join(symbols)}",
+        body=lead + "\n\n" + "\n".join(
+            f"- {u.symbol}: {u.summary or u.title}" for u in units
+        ),
+        badges=[kind.capitalize(), f"{len(symbols)} names"],
+        symbols=symbols,
+        chart=_fig_to_dict(charts.book_impact_bars(rows, title=title)),
+        portfolio_impact=f"{len(symbols)} symbols in this story",
+    )
+    affected = Card(
+        id=f"{story_id}-affected",
+        kind=CardKind.CONTEXT,
+        title="Affected",
+        headline="Symbols in this arc",
+        body="\n".join(
+            f"{r['symbol']} — {r['rating'] or 'n/a'}"
+            + (f" · {r['weight']*100:.0f}% of book" if r.get("weight") else "")
+            for r in rows
+        ),
+        badges=symbols,
+        symbols=symbols,
+        chart=_fig_to_dict(charts.book_impact_bars(rows, title="Exposure")),
+    )
+
+    cards: list[Card] = [hook, affected]
+
+    # Prefer news/macro evidence slides; fall back to market/fundamentals.
+    for unit in units:
+        sym = unit.symbol or "?"
+        evidence_cards = [
+            c
+            for c in unit.cards
+            if c.kind is CardKind.EVIDENCE and c.title in {"News", "Macro", "Market", "Fundamentals"}
+        ]
+        preferred = sorted(
+            evidence_cards,
+            key=lambda c: {"News": 0, "Macro": 1, "Market": 2, "Fundamentals": 3}.get(
+                c.title, 9
+            ),
+        )
+        if preferred:
+            for card in preferred[:2]:
+                cards.append(
+                    card.model_copy(
+                        update={
+                            "id": f"{story_id}-{sym}-{card.id}",
+                            "title": f"{sym} · {card.title}",
+                            "symbols": [sym],
+                            "badges": list(dict.fromkeys([sym, *card.badges])),
+                        }
+                    )
+                )
+        tension = next((c for c in unit.cards if c.kind is CardKind.TENSION), None)
+        if tension:
+            cards.append(
+                tension.model_copy(
+                    update={
+                        "id": f"{story_id}-{sym}-tension",
+                        "title": f"{sym} · Debate",
+                        "symbols": [sym],
+                        "badges": list(dict.fromkeys([sym, *tension.badges])),
+                    }
+                )
+            )
+        verdict = next((c for c in unit.cards if c.kind is CardKind.VERDICT), None)
+        if verdict:
+            cards.append(
+                verdict.model_copy(
+                    update={
+                        "id": f"{story_id}-{sym}-verdict",
+                        "title": f"{sym} · Verdict",
+                        "symbols": [sym],
+                        "badges": list(dict.fromkeys([sym, *verdict.badges])),
+                    }
+                )
+            )
+
+    # Cap album length so horizontal swipe stays scannable
+    if len(cards) > 10:
+        cards = cards[:2] + cards[2:10]
+
+    return Narrative(
+        id=f"{story_id}-{as_of or 'latest'}",
+        title=title,
+        summary=lead,
+        symbols=symbols,
+        dominance=dominance,
+        badges=[kind.capitalize(), *symbols[:4]],
+        cards=cards,
+        meta={
+            "story_kind": kind,
+            "trade_date": as_of,
+            "symbol_count": len(symbols),
+        },
+    )

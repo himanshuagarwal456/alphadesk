@@ -50,6 +50,17 @@ def test_scenario_bands_has_close_line():
     assert any(getattr(t, "mode", None) == "lines" for t in fig.data)
 
 
+def test_book_impact_bars():
+    fig = charts.book_impact_bars(
+        [
+            {"symbol": "NVDA", "weight": 0.22, "rating": "Underweight"},
+            {"symbol": "AAPL", "weight": 0.0, "rating": "Buy"},
+        ]
+    )
+    assert isinstance(fig, go.Figure)
+    assert fig.data[0].orientation == "h"
+
+
 # --- parsers --------------------------------------------------------------
 
 def test_parse_rating_variants():
@@ -104,13 +115,17 @@ def test_compute_dominance_boosts_held_names():
     assert held > not_held
 
 
-def test_sample_feed_ranked_held_name_first():
+def test_sample_feed_desk_brief_then_themes():
     feed = sample_feed()
     assert isinstance(feed, Feed)
-    assert len(feed.narratives) == 2
-    # NVDA is held (22% of book) -> dominates AAPL despite AAPL's stronger rating
-    assert feed.narratives[0].symbol == "NVDA"
-    assert feed.narratives[0].dominance >= feed.narratives[1].dominance
+    assert len(feed.narratives) >= 2
+    lead = feed.narratives[0]
+    assert lead.meta.get("story_kind") == "desk_brief"
+    assert "NVDA" in lead.symbols and "AAPL" in lead.symbols
+    assert lead.cards[0].kind is CardKind.HOOK
+    # Theme stories still surface both names across the feed
+    all_syms = {s for n in feed.narratives for s in n.symbols}
+    assert {"NVDA", "AAPL"} <= all_syms
 
 
 # --- rendering ------------------------------------------------------------
@@ -120,11 +135,14 @@ def test_render_feed_html_embeds_deck():
     assert "<!doctype html>" in html.lower()
     assert "plotly" in html.lower()
     assert "NVDA" in html
+    assert "Desk brief" in html
+    assert "Affected" in html or "affected" in html.lower()
     # the embedded FEED json parses
     start = html.index("const FEED = ") + len("const FEED = ")
     end = html.index(";\n", start)
     data = json.loads(html[start:end])
-    assert len(data["narratives"]) == 2
+    assert len(data["narratives"]) >= 2
+    assert data["narratives"][0]["symbols"]
     assert "Sources (" in html
     assert "finance.yahoo.com" in html
     assert "fred.stlouisfed.org" in html
