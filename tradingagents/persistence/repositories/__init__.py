@@ -4,6 +4,7 @@ from .cards import IntelligenceCardRepository
 from .events import RunEventRepository
 from .evidence import EvidenceRepository
 from .journal import JournalRepository
+from .knowledge import KnowledgeRepository
 from .portfolios import PortfolioRepository
 from .research import PrivateDocumentRepository
 from .runs import AnalysisRunRepository
@@ -16,6 +17,7 @@ __all__ = [
     "EvidenceRepository",
     "IntelligenceCardRepository",
     "JournalRepository",
+    "KnowledgeRepository",
     "PortfolioRepository",
     "PortfolioStateRepository",
     "PrivateDocumentRepository",

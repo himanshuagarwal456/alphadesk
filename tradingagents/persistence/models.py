@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     JSON,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -305,6 +306,90 @@ class WatchlistRow(Base):
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class ConceptRow(Base):
+    __tablename__ = "knowledge_concepts"
+    __table_args__ = (UniqueConstraint("slug", name="uq_knowledge_concepts_slug"),)
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="published")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class KnowledgeResourceRow(Base):
+    __tablename__ = "knowledge_resources"
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    provider: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="published")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class ConceptResourceRow(Base):
+    __tablename__ = "knowledge_concept_resources"
+    __table_args__ = (
+        UniqueConstraint(
+            "concept_id", "resource_id", name="uq_knowledge_concept_resources"
+        ),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    concept_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    relevance_score: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class IntelligenceCardConceptRow(Base):
+    __tablename__ = "intelligence_card_concepts"
+    __table_args__ = (
+        UniqueConstraint(
+            "intelligence_card_id",
+            "concept_id",
+            name="uq_intelligence_card_concepts",
+        ),
+        Index("ix_card_concepts_card", "intelligence_card_id"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    intelligence_card_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    concept_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    relevance_score: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    context_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class UserConceptProgressRow(Base):
+    __tablename__ = "user_concept_progress"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "concept_id", name="uq_user_concept_progress"
+        ),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    concept_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="not_started")
+    saved: Mapped[str] = mapped_column(String(8), nullable=False, default="false")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )

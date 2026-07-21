@@ -71,18 +71,228 @@
     const root = document.getElementById("view-intelligence");
     const cards = await api("/v1/cards?limit=50");
     if (!cards.length) {
-      root.innerHTML = `<div class="panel">${empty("No intelligence cards yet. Monitoring will fill this surface later; you can also POST /v1/cards.")}</div>`;
+      root.innerHTML = `<div class="panel stack">
+        ${empty("No intelligence cards yet. Create a demo card to try Learn More, or browse the concept catalog.")}
+        <div class="actions">
+          <button type="button" class="btn-primary" id="demo-card">Create demo card</button>
+          <button type="button" class="btn" id="browse-concepts">Browse concepts</button>
+        </div>
+      </div>`;
+      root.querySelector("#demo-card")?.addEventListener("click", async () => {
+        try {
+          setStatus("Creating demo card…");
+          await api("/v1/knowledge/demo-card", { method: "POST", json: {} });
+          setStatus("Demo card ready", "ok");
+          await renderIntelligence();
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      });
+      root.querySelector("#browse-concepts")?.addEventListener("click", () => openConceptBrowser());
       return;
     }
     root.innerHTML = `<div class="panel list">${cards
       .map(
-        (c) => `<article class="row">
+        (c) => `<article class="row" data-card-id="${escapeHtml(c.id)}">
           <strong>${escapeHtml(c.title || c.id)}</strong>
           <div class="meta">${escapeHtml(c.symbol || "—")} · ${escapeHtml(c.card_type || "card")}</div>
           <div>${escapeHtml(c.headline || c.body || "")}</div>
+          <div class="actions">
+            <button type="button" class="btn learn-more" data-card-id="${escapeHtml(c.id)}">Learn More</button>
+          </div>
         </article>`
       )
       .join("")}</div>`;
+    root.querySelectorAll("button.learn-more").forEach((btn) => {
+      btn.addEventListener("click", () => openLearnMore(btn.dataset.cardId));
+    });
+  }
+
+  function ensureDrawer() {
+    let host = document.getElementById("learn-drawer-host");
+    if (host) return host;
+    host = document.createElement("div");
+    host.id = "learn-drawer-host";
+    host.innerHTML = `
+      <div class="drawer-backdrop" id="learn-backdrop" hidden></div>
+      <aside class="drawer" id="learn-drawer" hidden aria-hidden="true">
+        <div class="drawer-head">
+          <div>
+            <p class="drawer-kicker">Learn More</p>
+            <h2 id="learn-title">Concept</h2>
+          </div>
+          <button type="button" class="btn" id="learn-close" aria-label="Close">Close</button>
+        </div>
+        <div class="drawer-body" id="learn-body"></div>
+      </aside>`;
+    document.body.appendChild(host);
+    host.querySelector("#learn-close").addEventListener("click", closeLearnMore);
+    host.querySelector("#learn-backdrop").addEventListener("click", closeLearnMore);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeLearnMore();
+    });
+    return host;
+  }
+
+  function closeLearnMore() {
+    const backdrop = document.getElementById("learn-backdrop");
+    const drawer = document.getElementById("learn-drawer");
+    if (!backdrop || !drawer) return;
+    backdrop.hidden = true;
+    drawer.hidden = true;
+    drawer.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("drawer-open");
+  }
+
+  async function openConceptBrowser() {
+    ensureDrawer();
+    const drawer = document.getElementById("learn-drawer");
+    const backdrop = document.getElementById("learn-backdrop");
+    const body = document.getElementById("learn-body");
+    document.getElementById("learn-title").textContent = "Concept catalog";
+    body.innerHTML = `<p class="meta">Loading…</p>`;
+    backdrop.hidden = false;
+    drawer.hidden = false;
+    drawer.setAttribute("aria-hidden", "false");
+    document.body.classList.add("drawer-open");
+    try {
+      const concepts = await api("/v1/knowledge/concepts");
+      body.innerHTML = `<div class="list">${concepts
+        .map(
+          (c) => `<button type="button" class="row concept-pick" data-concept-id="${escapeHtml(c.id)}">
+            <strong>${escapeHtml(c.title)}</strong>
+            <div class="meta">${escapeHtml(c.difficulty)} · ~${escapeHtml(c.estimated_read_time)} min</div>
+            <div>${escapeHtml(c.short_definition)}</div>
+          </button>`
+        )
+        .join("")}</div>`;
+      body.querySelectorAll(".concept-pick").forEach((btn) => {
+        btn.addEventListener("click", () => openLearnMoreContext(btn.dataset.conceptId));
+      });
+    } catch (err) {
+      body.innerHTML = empty(err.message);
+    }
+  }
+
+  async function openLearnMore(cardId) {
+    ensureDrawer();
+    const drawer = document.getElementById("learn-drawer");
+    const backdrop = document.getElementById("learn-backdrop");
+    const body = document.getElementById("learn-body");
+    document.getElementById("learn-title").textContent = "Related concepts";
+    body.innerHTML = `<p class="meta">Finding concepts for this card…</p>`;
+    backdrop.hidden = false;
+    drawer.hidden = false;
+    drawer.setAttribute("aria-hidden", "false");
+    document.body.classList.add("drawer-open");
+    try {
+      const concepts = await api(`/v1/knowledge/cards/${encodeURIComponent(cardId)}/concepts`);
+      if (!concepts.length) {
+        body.innerHTML = empty("No matching concepts for this card yet.");
+        return;
+      }
+      body.innerHTML = `<div class="list">${concepts
+        .map(
+          (c) => `<button type="button" class="row concept-pick" data-concept-id="${escapeHtml(c.id)}">
+            <strong>${escapeHtml(c.title)}</strong>
+            <div class="meta">${escapeHtml(c.difficulty)} · ~${escapeHtml(c.estimated_read_time)} min</div>
+            <div>${escapeHtml(c.short_definition)}</div>
+          </button>`
+        )
+        .join("")}</div>`;
+      body.querySelectorAll(".concept-pick").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          openLearnMoreContext(btn.dataset.conceptId, cardId)
+        );
+      });
+      if (concepts.length === 1) {
+        await openLearnMoreContext(concepts[0].id, cardId);
+      }
+    } catch (err) {
+      body.innerHTML = empty(err.message);
+    }
+  }
+
+  async function openLearnMoreContext(conceptId, cardId = null) {
+    ensureDrawer();
+    const drawer = document.getElementById("learn-drawer");
+    const backdrop = document.getElementById("learn-backdrop");
+    const body = document.getElementById("learn-body");
+    document.getElementById("learn-title").textContent = "Loading…";
+    body.innerHTML = `<p class="meta">Building context…</p>`;
+    backdrop.hidden = false;
+    drawer.hidden = false;
+    drawer.setAttribute("aria-hidden", "false");
+    document.body.classList.add("drawer-open");
+    try {
+      const params = new URLSearchParams({ concept_id: conceptId });
+      if (cardId) params.set("intelligence_card_id", cardId);
+      const ctx = await api(`/v1/knowledge/context?${params.toString()}`);
+      document.getElementById("learn-title").textContent = ctx.concept.title;
+      const progress = ctx.user_progress || {};
+      const resources = (ctx.external_resources || [])
+        .map(
+          (r) => `<li>
+            <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
+            <span class="meta"> · ${escapeHtml(r.provider)} · ${escapeHtml(r.access_type)}</span>
+          </li>`
+        )
+        .join("");
+      const related = (ctx.related_concepts || [])
+        .map(
+          (c) => `<button type="button" class="chip related-concept" data-concept-id="${escapeHtml(c.id)}">${escapeHtml(c.title)}</button>`
+        )
+        .join("");
+      body.innerHTML = `
+        <p class="lede learn-tldr">${escapeHtml(ctx.concept.short_definition)}</p>
+        <section class="learn-block">
+          <h3>Why it matters</h3>
+          <p>${escapeHtml(ctx.why_it_matters)}</p>
+        </section>
+        <section class="learn-block">
+          <h3>Explanation <span class="meta">(${escapeHtml(ctx.explanation_level)})</span></h3>
+          <p>${escapeHtml(ctx.personalized_explanation)}</p>
+        </section>
+        <section class="learn-block">
+          <h3>Portfolio example</h3>
+          <p>${escapeHtml(ctx.portfolio_example)}</p>
+        </section>
+        ${related ? `<section class="learn-block"><h3>Related</h3><div class="chip-row">${related}</div></section>` : ""}
+        ${resources ? `<section class="learn-block"><h3>Further reading</h3><ul class="resource-list">${resources}</ul></section>` : ""}
+        <div class="actions learn-actions">
+          <button type="button" class="btn" id="learn-save">${progress.saved ? "Unsave" : "Save"}</button>
+          <button type="button" class="btn-primary" id="learn-complete">${progress.status === "completed" ? "Completed" : "Mark complete"}</button>
+        </div>
+        <p class="meta" id="learn-progress">Views: ${escapeHtml(progress.view_count ?? 0)} · Status: ${escapeHtml(progress.status || "not_started")}</p>
+      `;
+      body.querySelectorAll(".related-concept").forEach((btn) => {
+        btn.addEventListener("click", () => openLearnMoreContext(btn.dataset.conceptId, cardId));
+      });
+      body.querySelector("#learn-save")?.addEventListener("click", async () => {
+        try {
+          await api(`/v1/knowledge/concepts/${encodeURIComponent(conceptId)}/progress`, {
+            method: "POST",
+            json: { saved: !progress.saved },
+          });
+          await openLearnMoreContext(conceptId, cardId);
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      });
+      body.querySelector("#learn-complete")?.addEventListener("click", async () => {
+        try {
+          await api(`/v1/knowledge/concepts/${encodeURIComponent(conceptId)}/progress`, {
+            method: "POST",
+            json: { status: "completed" },
+          });
+          await openLearnMoreContext(conceptId, cardId);
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      });
+    } catch (err) {
+      body.innerHTML = empty(err.message);
+    }
   }
 
   async function renderPortfolio() {
