@@ -127,3 +127,26 @@ def update_run_status(
         payload={"status": body.status.value, "error": body.error},
     )
     return updated
+
+
+@router.post("/{run_id}/retry", response_model=AnalysisRun, status_code=202)
+def retry_run(
+    run_id: str,
+    request: Request,
+    workspace_id: str = Depends(get_workspace_id),
+) -> AnalysisRun:
+    """Requeue a failed run within its attempt budget."""
+    from tradingagents.api.run_worker import retry_research_run
+
+    state = get_app_state(request)
+    try:
+        return retry_research_run(
+            state.session_factory,
+            workspace_id=workspace_id,
+            run_id=run_id,
+            start_worker=True,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

@@ -393,3 +393,139 @@ class UserConceptProgressRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
+
+
+class MonitorDefinitionRow(Base):
+    __tablename__ = "monitor_definitions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_monitors_workspace_id"),
+        Index("ix_monitors_workspace_kind", "workspace_id", "kind"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    enabled: Mapped[str] = mapped_column(String(8), nullable=False, default="true")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class MonitorRunRow(Base):
+    __tablename__ = "monitor_runs"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_monitor_runs_workspace_id"),
+        Index("ix_monitor_runs_workspace_status", "workspace_id", "status"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    monitor_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class NotificationRow(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_notifications_workspace_id"),
+        Index("ix_notifications_workspace_status", "workspace_id", "status"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="unread")
+    symbol: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    intelligence_card_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class AlertFingerprintRow(Base):
+    __tablename__ = "alert_fingerprints"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "fingerprint", name="uq_alert_fingerprints"
+        ),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
+    intelligence_card_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class UsageRecordRow(Base):
+    __tablename__ = "usage_records"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_usage_records_workspace_id"),
+        Index("ix_usage_records_workspace_created", "workspace_id", "created_at"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    analysis_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    kind: Mapped[str] = mapped_column(String(64), nullable=False, default="research_run")
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class AuditEventRow(Base):
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_audit_events_workspace_id"),
+        Index("ix_audit_events_workspace_created", "workspace_id", "created_at"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    resource_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class DeadLetterRow(Base):
+    __tablename__ = "dead_letters"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_dead_letters_workspace_id"),
+        Index("ix_dead_letters_workspace_status", "workspace_id", "status"),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    analysis_run_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )

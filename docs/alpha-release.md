@@ -796,9 +796,12 @@ Each fact retains:
 
 ## Phase 8 — Monitoring and Material-Change Intelligence
 
-> **Delivery note:** Deferred until after evaluations (see §12 order 11). Ship
-> the complete research → thesis → journal product loop first, then measure
-> quality, then add continuous monitoring.
+> **Status (2026-07-21):** Shipped MVP — monitor definitions, event ingest,
+> rule-based materiality, alert dedup, Intelligence Card + notification
+> generation, pause controls, monitoring health, card review/save/dismiss,
+> `POST /v1/monitoring/tick`, and `alphadesk-monitor` CLI. Network pollers and
+> email digests remain optional follow-ons; targeted re-analysis can be enabled
+> per monitor without launching full deep research for immaterial news.
 
 **Goal:** Move from one-time research to continuous portfolio intelligence.
 
@@ -965,6 +968,14 @@ Build a dated evaluation set containing:
 ---
 
 ## Phase 11 — Reliability, Security, and Operations
+
+> **Status (2026-07-21):** Shipped MVP — structured trace IDs (`X-Trace-Id`),
+> `/health` + `/health/ready`, failed-run retry with dead-letter after max
+> attempts, audit events, workspace export/backup manifest, provider circuit
+> breakers (diagnostics), and durable run-cost observability (tokens in/out,
+> LLM/tool/provider calls, duration, estimated USD via versioned pricing table
+> on `UsageRecord` + `/v1/ops/usage`). Full managed backups, container scanning,
+> and invite auth remain outside this slice (Phases 4/11 remainder).
 
 **Goal:** Make the product safe enough for invite-only external use.
 

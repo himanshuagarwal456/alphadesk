@@ -145,6 +145,18 @@ class AnalysisRun(BaseModel):
     quick_think_llm: str | None = None
     prompt_version: str | None = None
     eval_suite_version: str | None = None
+    # Usage / cost observability (Phase 11).
+    llm_calls: int = 0
+    tool_calls: int = 0
+    tokens_in: int = 0
+    tokens_out: int = 0
+    provider_calls: int = 0
+    provider_errors: int = 0
+    estimated_cost_usd: float | None = None
+    duration_ms: int | None = None
+    attempt: int = 1
+    max_attempts: int = 3
+    trace_id: str | None = None
     error: str | None = None
     workspace_id: str | None = None
     started_at: datetime | None = None
@@ -207,6 +219,10 @@ class IntelligenceCardRecord(BaseModel):
     headline: str = ""
     body: str = ""
     evidence_ids: list[str] = Field(default_factory=list)
+    status: str = "new"
+    materiality_score: float | None = None
+    confidence: float | None = None
+    fingerprint: str | None = None
     payload: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     schema_version: int = 1

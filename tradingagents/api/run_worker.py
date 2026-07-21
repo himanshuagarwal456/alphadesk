@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import time
 import traceback
 from collections.abc import Callable
 from datetime import date, datetime, timezone
@@ -21,6 +22,10 @@ from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.domain.schemas import AnalysisRun, RunStatus
 from tradingagents.evals.governance import attach_model_metadata
 from tradingagents.evidence.schemas import Evidence
+from tradingagents.observability.logging import bind_trace_id, get_trace_id
+from tradingagents.observability.pricing import PRICING_TABLE_VERSION, estimate_llm_cost_usd
+from tradingagents.observability.schemas import AuditEvent, DeadLetterRecord, UsageRecord
+from tradingagents.observability.usage import UsageTracker
 from tradingagents.persistence.repositories import (
     AnalysisRunRepository,
     EvidenceRepository,
@@ -28,6 +33,7 @@ from tradingagents.persistence.repositories import (
     PortfolioStateRepository,
     RunEventRepository,
 )
+from tradingagents.persistence.repositories.ops import OpsRepository
 from tradingagents.persistence.session import SessionFactory
 from tradingagents.portfolio.service import CURRENT_SNAPSHOT_ID
 
@@ -146,6 +152,64 @@ def _append_event(
         )
 
 
+def _persist_usage(
+    session_factory: SessionFactory,
+    *,
+    workspace_id: str,
+    run: AnalysisRun,
+    tracker: UsageTracker,
+    duration_ms: int,
+) -> AnalysisRun:
+    cost = estimate_llm_cost_usd(
+        tokens_in=tracker.tokens_in,
+        tokens_out=tracker.tokens_out,
+        deep_think_llm=run.deep_think_llm,
+        quick_think_llm=run.quick_think_llm,
+    )
+    updated = run.model_copy(
+        update={
+            "llm_calls": tracker.llm_calls,
+            "tool_calls": tracker.tool_calls,
+            "tokens_in": tracker.tokens_in,
+            "tokens_out": tracker.tokens_out,
+            "provider_calls": tracker.provider_calls,
+            "provider_errors": tracker.provider_errors,
+            "estimated_cost_usd": cost,
+            "duration_ms": duration_ms,
+            "trace_id": run.trace_id or get_trace_id(),
+        }
+    )
+    usage = UsageRecord(
+        workspace_id=workspace_id,
+        analysis_run_id=updated.id,
+        kind="research_run",
+        llm_calls=updated.llm_calls,
+        tool_calls=updated.tool_calls,
+        tokens_in=updated.tokens_in,
+        tokens_out=updated.tokens_out,
+        provider_calls=updated.provider_calls,
+        provider_errors=updated.provider_errors,
+        estimated_cost_usd=updated.estimated_cost_usd,
+        duration_ms=duration_ms,
+        pricing_version=PRICING_TABLE_VERSION,
+        model_provider=updated.model_provider,
+        deep_think_llm=updated.deep_think_llm,
+        quick_think_llm=updated.quick_think_llm,
+        trace_id=updated.trace_id,
+    )
+    with session_factory.session_scope() as session:
+        saved = AnalysisRunRepository(session).save(updated, workspace_id=workspace_id)
+        OpsRepository(session).save_usage(usage)
+        RunEventRepository(session).append(
+            workspace_id=workspace_id,
+            analysis_run_id=saved.id or run.id or "",
+            event_type="run.usage",
+            message="Recorded token and cost usage",
+            payload=usage.model_dump(mode="json"),
+        )
+        return saved
+
+
 def execute_research_job(
     session_factory: SessionFactory,
     *,
@@ -154,10 +218,16 @@ def execute_research_job(
     graph_factory: GraphFactory | None = None,
 ) -> AnalysisRun:
     """Run research for an existing queued AnalysisRun and persist results."""
+    started = time.perf_counter()
+    tracker = UsageTracker()
     with session_factory.session_scope() as session:
         run = AnalysisRunRepository(session).get(workspace_id, run_id)
         if run is None:
             raise ValueError(f"run not found: {run_id}")
+        trace_id = bind_trace_id(run.trace_id)
+        if not run.trace_id:
+            run = run.model_copy(update={"trace_id": trace_id})
+            AnalysisRunRepository(session).save(run, workspace_id=workspace_id)
         AnalysisRunRepository(session).update_status(
             workspace_id, run_id, RunStatus.RUNNING
         )
@@ -166,6 +236,7 @@ def execute_research_job(
             analysis_run_id=run_id,
             event_type="run.started",
             message=f"Research started for {run.symbol}",
+            payload={"trace_id": trace_id, "attempt": run.attempt},
         )
 
     portfolio = None
@@ -214,6 +285,7 @@ def execute_research_job(
                 list(run.selected_analysts or DEFAULT_ANALYSTS),
                 config=config,
                 debug=False,
+                callbacks=[tracker],
             )
             final_state, _decision = graph.propagate(
                 run.symbol,
@@ -224,6 +296,7 @@ def execute_research_job(
             )
     except Exception as exc:
         logger.exception("research run %s failed", run_id)
+        duration_ms = int((time.perf_counter() - started) * 1000)
         with session_factory.session_scope() as session:
             failed = AnalysisRunRepository(session).update_status(
                 workspace_id,
@@ -240,6 +313,37 @@ def execute_research_job(
             )
             if failed is None:
                 raise
+            failed = failed.model_copy(
+                update={
+                    "llm_calls": tracker.llm_calls,
+                    "tool_calls": tracker.tool_calls,
+                    "tokens_in": tracker.tokens_in,
+                    "tokens_out": tracker.tokens_out,
+                    "duration_ms": duration_ms,
+                    "trace_id": failed.trace_id or get_trace_id(),
+                }
+            )
+            AnalysisRunRepository(session).save(failed, workspace_id=workspace_id)
+            if failed.attempt >= failed.max_attempts:
+                OpsRepository(session).save_dead_letter(
+                    DeadLetterRecord(
+                        workspace_id=workspace_id,
+                        analysis_run_id=run_id,
+                        attempts=failed.attempt,
+                        last_error=str(exc),
+                        payload={"symbol": failed.symbol, "trade_date": failed.trade_date},
+                    )
+                )
+                OpsRepository(session).save_audit(
+                    AuditEvent(
+                        workspace_id=workspace_id,
+                        action="run.dead_lettered",
+                        resource_type="analysis_run",
+                        resource_id=run_id,
+                        message=str(exc),
+                        trace_id=failed.trace_id,
+                    )
+                )
             return failed
 
     final_state = final_state or {}
@@ -251,6 +355,7 @@ def execute_research_job(
         message="Graph finished; persisting structured decision",
     )
 
+    duration_ms = int((time.perf_counter() - started) * 1000)
     with session_factory.session_scope() as session:
         current = AnalysisRunRepository(session).get(workspace_id, run_id)
         if current is None:
@@ -269,7 +374,14 @@ def execute_research_job(
             ),
             payload={"final_rating": saved.final_rating},
         )
-        return saved
+
+    return _persist_usage(
+        session_factory,
+        workspace_id=workspace_id,
+        run=saved,
+        tracker=tracker,
+        duration_ms=duration_ms,
+    )
 
 
 def start_research_thread(
@@ -310,6 +422,9 @@ def queue_research_run(
     selected_analysts: list[str] | None = None,
     start_worker: bool = True,
     graph_factory: GraphFactory | None = None,
+    trace_id: str | None = None,
+    attempt: int = 1,
+    max_attempts: int = 3,
 ) -> AnalysisRun:
     """Create a queued AnalysisRun and optionally start the background worker."""
     resolved_date = trade_date or date.today().isoformat()
@@ -325,6 +440,9 @@ def queue_research_run(
         model_provider=config.get("llm_provider"),
         deep_think_llm=config.get("deep_think_llm"),
         quick_think_llm=config.get("quick_think_llm"),
+        trace_id=trace_id or bind_trace_id(),
+        attempt=attempt,
+        max_attempts=max_attempts,
     )
     with session_factory.session_scope() as session:
         saved = AnalysisRunRepository(session).save(run, workspace_id=workspace_id)
@@ -333,7 +451,79 @@ def queue_research_run(
             analysis_run_id=saved.id,
             event_type="run.created",
             message=f"Run queued for {saved.symbol} on {saved.trade_date}",
-            payload={"status": saved.status.value},
+            payload={"status": saved.status.value, "attempt": saved.attempt},
+        )
+        OpsRepository(session).save_audit(
+            AuditEvent(
+                workspace_id=workspace_id,
+                action="run.queued",
+                resource_type="analysis_run",
+                resource_id=saved.id or "",
+                message=f"Queued {saved.symbol}",
+                trace_id=saved.trace_id,
+            )
+        )
+    if start_worker:
+        start_research_thread(
+            session_factory,
+            workspace_id=workspace_id,
+            run_id=saved.id,
+            graph_factory=graph_factory,
+        )
+    return saved
+
+
+def retry_research_run(
+    session_factory: SessionFactory,
+    *,
+    workspace_id: str,
+    run_id: str,
+    start_worker: bool = True,
+    graph_factory: GraphFactory | None = None,
+) -> AnalysisRun:
+    """Requeue a failed run, or dead-letter when attempts are exhausted."""
+    with session_factory.session_scope() as session:
+        run = AnalysisRunRepository(session).get(workspace_id, run_id)
+        if run is None:
+            raise KeyError("run not found")
+        if run.status is not RunStatus.FAILED:
+            raise ValueError("only failed runs can be retried")
+        next_attempt = run.attempt + 1
+        if next_attempt > run.max_attempts:
+            OpsRepository(session).save_dead_letter(
+                DeadLetterRecord(
+                    workspace_id=workspace_id,
+                    analysis_run_id=run_id,
+                    attempts=run.attempt,
+                    last_error=run.error or "max attempts exceeded",
+                )
+            )
+            raise ValueError("max attempts exceeded; run dead-lettered")
+        updated = run.model_copy(
+            update={
+                "status": RunStatus.QUEUED,
+                "attempt": next_attempt,
+                "error": None,
+                "completed_at": None,
+            }
+        )
+        saved = AnalysisRunRepository(session).save(updated, workspace_id=workspace_id)
+        RunEventRepository(session).append(
+            workspace_id=workspace_id,
+            analysis_run_id=run_id,
+            event_type="run.retry",
+            message=f"Retry attempt {next_attempt}/{saved.max_attempts}",
+            payload={"attempt": next_attempt},
+        )
+        OpsRepository(session).save_audit(
+            AuditEvent(
+                workspace_id=workspace_id,
+                action="run.retry",
+                resource_type="analysis_run",
+                resource_id=run_id,
+                message=f"Retry attempt {next_attempt}",
+                trace_id=saved.trace_id,
+            )
         )
     if start_worker:
         start_research_thread(

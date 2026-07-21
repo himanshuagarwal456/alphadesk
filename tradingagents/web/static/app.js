@@ -95,16 +95,53 @@
       .map(
         (c) => `<article class="row" data-card-id="${escapeHtml(c.id)}">
           <strong>${escapeHtml(c.title || c.id)}</strong>
-          <div class="meta">${escapeHtml(c.symbol || "—")} · ${escapeHtml(c.card_type || "card")}</div>
+          <div class="meta">${escapeHtml(c.symbol || "—")} · ${escapeHtml(c.card_type || "card")} · ${escapeHtml(c.status || "new")}</div>
           <div>${escapeHtml(c.headline || c.body || "")}</div>
           <div class="actions">
             <button type="button" class="btn learn-more" data-card-id="${escapeHtml(c.id)}">Learn More</button>
+            <button type="button" class="btn card-status" data-card-id="${escapeHtml(c.id)}" data-status="reviewed">Mark reviewed</button>
+            <button type="button" class="btn card-status" data-card-id="${escapeHtml(c.id)}" data-status="saved">Save</button>
+            <button type="button" class="btn card-status" data-card-id="${escapeHtml(c.id)}" data-status="dismissed">Dismiss</button>
           </div>
         </article>`
       )
-      .join("")}</div>`;
+      .join("")}</div>
+      <div class="panel" style="margin-top:1rem;">
+        <div class="actions">
+          <button type="button" class="btn" id="run-monitor-tick">Run monitor tick</button>
+          <button type="button" class="btn" id="browse-concepts-intel">Browse concepts</button>
+        </div>
+        <div id="monitor-health" class="meta" style="margin-top:.75rem;"></div>
+      </div>`;
     root.querySelectorAll("button.learn-more").forEach((btn) => {
       btn.addEventListener("click", () => openLearnMore(btn.dataset.cardId));
+    });
+    root.querySelectorAll("button.card-status").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await api(`/v1/cards/${encodeURIComponent(btn.dataset.cardId)}/status`, {
+            method: "POST",
+            json: { status: btn.dataset.status },
+          });
+          await renderIntelligence();
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      });
+    });
+    root.querySelector("#browse-concepts-intel")?.addEventListener("click", () => openConceptBrowser());
+    root.querySelector("#run-monitor-tick")?.addEventListener("click", async () => {
+      try {
+        setStatus("Running monitor…");
+        const run = await api("/v1/monitoring/tick", { method: "POST", json: {} });
+        const health = await api("/v1/monitoring/health");
+        root.querySelector("#monitor-health").textContent =
+          `Tick ${run.status}: ${run.cards_created} cards · unread ${health.unread_notifications}`;
+        setStatus("Monitor tick complete", "ok");
+        await renderIntelligence();
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
     });
   }
 
@@ -630,9 +667,17 @@
     const root = document.getElementById("view-settings");
     let me = null;
     let health = null;
+    let ready = null;
+    let usage = null;
+    let controls = null;
+    let monHealth = null;
     try {
       me = await api("/v1/workspaces/me");
       health = await fetch("/health").then((r) => r.json());
+      ready = await fetch("/health/ready").then((r) => r.json());
+      usage = await api("/v1/ops/usage");
+      controls = await api("/v1/monitoring/controls");
+      monHealth = await api("/v1/monitoring/health");
     } catch (err) {
       setStatus(err.message, "error");
     }
@@ -642,11 +687,47 @@
         <div class="mono">${escapeHtml(JSON.stringify(health || { status: "unreachable" }))}</div>
       </div>
       <div>
+        <div class="meta">Readiness</div>
+        <div class="mono">${escapeHtml(JSON.stringify(ready || { status: "unreachable" }))}</div>
+      </div>
+      <div>
         <div class="meta">Active workspace</div>
         <div class="mono">${escapeHtml(JSON.stringify(me || { id: workspaceId() }))}</div>
       </div>
+      <div>
+        <div class="meta">Monitoring</div>
+        <div class="actions">
+          <button type="button" class="btn-primary" id="toggle-monitoring">${controls && controls.monitoring_enabled === false ? "Enable monitoring" : "Pause monitoring"}</button>
+          <button type="button" class="btn" id="settings-monitor-tick">Run monitor tick</button>
+        </div>
+        <div class="mono" style="margin-top:.5rem;">${escapeHtml(JSON.stringify(monHealth || {}))}</div>
+      </div>
+      <div>
+        <div class="meta">Usage &amp; estimated cost</div>
+        <div class="mono">${escapeHtml(JSON.stringify(usage || {}))}</div>
+      </div>
       <p class="hint">Core journeys use the durable /v1 API. Auth (Phase 4) will replace the workspace header.</p>
     </div>`;
+    root.querySelector("#toggle-monitoring")?.addEventListener("click", async () => {
+      try {
+        const enabled = !(controls && controls.monitoring_enabled === false);
+        await api("/v1/monitoring/controls", {
+          method: "PUT",
+          json: { monitoring_enabled: !enabled },
+        });
+        await renderSettings();
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
+    });
+    root.querySelector("#settings-monitor-tick")?.addEventListener("click", async () => {
+      try {
+        await api("/v1/monitoring/tick", { method: "POST", json: {} });
+        await renderSettings();
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
+    });
   }
 
   const RENDERERS = {

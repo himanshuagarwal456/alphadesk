@@ -22,10 +22,11 @@ from tradingagents.evidence.schemas import Evidence
 
 
 class _FakeGraph:
-    def __init__(self, selected_analysts, config=None, debug=False):
+    def __init__(self, selected_analysts, config=None, debug=False, callbacks=None):
         self.selected_analysts = selected_analysts
         self.config = config or {}
         self.debug = debug
+        self.callbacks = callbacks or []
 
     def propagate(self, symbol, trade_date, asset_type="stock", portfolio=None, market_view=""):
         evidence = Evidence(
