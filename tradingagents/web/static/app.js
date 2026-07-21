@@ -729,6 +729,13 @@
         <div class="meta">Usage &amp; estimated cost</div>
         <div class="mono">${escapeHtml(JSON.stringify(usage || {}))}</div>
       </div>
+      <div>
+        <div class="meta">Factor exposures (Batch 1)</div>
+        <div class="actions">
+          <button type="button" class="btn" id="load-factors">Load factor exposures</button>
+        </div>
+        <div id="factor-exposures" class="mono" style="margin-top:.5rem;"></div>
+      </div>
       <p class="hint">Core journeys use the durable /v1 API. Auth (Phase 4) will replace the workspace header.</p>
     </div>`;
     root.querySelector("#toggle-monitoring")?.addEventListener("click", async () => {
@@ -748,6 +755,23 @@
         await api("/v1/monitoring/tick", { method: "POST", json: {} });
         await renderSettings();
       } catch (err) {
+        setStatus(err.message, "error");
+      }
+    });
+    root.querySelector("#load-factors")?.addEventListener("click", async () => {
+      const el = root.querySelector("#factor-exposures");
+      try {
+        setStatus("Loading factor exposures…");
+        const report = await api("/v1/portfolios/current/factor-exposures");
+        const top = (report.exposures || [])
+          .filter((e) => e.category === "style" || e.category === "market")
+          .slice(0, 12)
+          .map((e) => `${e.factor_code}: ${Number(e.portfolio_exposure).toFixed(2)}`)
+          .join(" · ");
+        el.textContent = `coverage ${(report.coverage * 100).toFixed(0)}% · ${top || "no style exposures"}`;
+        setStatus("Factor exposures ready", "ok");
+      } catch (err) {
+        el.textContent = err.message;
         setStatus(err.message, "error");
       }
     });

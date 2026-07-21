@@ -529,3 +529,79 @@ class DeadLetterRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
+
+
+class FactorDefinitionRow(Base):
+    __tablename__ = "factor_definitions"
+    __table_args__ = (UniqueConstraint("code", name="uq_factor_definitions_code"),)
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class FactorModelVersionRow(Base):
+    __tablename__ = "factor_model_versions"
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    effective_date: Mapped[str] = mapped_column(String(16), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class SecurityFactorExposureRow(Base):
+    __tablename__ = "security_factor_exposures"
+    __table_args__ = (
+        Index(
+            "ix_sec_factor_exp_lookup",
+            "model_version_id",
+            "symbol",
+            "effective_date",
+        ),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    model_version_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    factor_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    effective_date: Mapped[str] = mapped_column(String(16), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class PortfolioFactorExposureRow(Base):
+    __tablename__ = "portfolio_factor_exposures"
+    __table_args__ = (
+        Index(
+            "ix_pf_factor_exp_lookup",
+            "workspace_id",
+            "portfolio_id",
+            "effective_date",
+        ),
+    )
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(220), nullable=False, unique=True)
+    workspace_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    portfolio_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    factor_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    effective_date: Mapped[str] = mapped_column(String(16), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

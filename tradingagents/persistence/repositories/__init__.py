@@ -3,6 +3,7 @@
 from .cards import IntelligenceCardRepository
 from .events import RunEventRepository
 from .evidence import EvidenceRepository
+from .factor_intelligence import FactorIntelligenceRepository
 from .journal import JournalRepository
 from .knowledge import KnowledgeRepository
 from .monitoring import MonitoringRepository
@@ -17,6 +18,7 @@ from .workspaces import WorkspaceRepository
 __all__ = [
     "AnalysisRunRepository",
     "EvidenceRepository",
+    "FactorIntelligenceRepository",
     "IntelligenceCardRepository",
     "JournalRepository",
     "KnowledgeRepository",

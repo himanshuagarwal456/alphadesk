@@ -8,6 +8,7 @@ from . import (
     cards,
     events,
     evidence,
+    factor_models,
     journal,
     knowledge,
     monitoring,
@@ -34,3 +35,7 @@ api_router.include_router(research.router, tags=["research"])
 api_router.include_router(knowledge.router, tags=["knowledge"])
 api_router.include_router(monitoring.router, tags=["monitoring"])
 api_router.include_router(ops.router, tags=["ops"])
+api_router.include_router(factor_models.router, tags=["factor-models"])
+api_router.include_router(
+    factor_models.portfolio_factors_router, tags=["portfolio-factors"]
+)
