@@ -72,10 +72,12 @@
     const cards = await api("/v1/cards?limit=50");
     if (!cards.length) {
       root.innerHTML = `<div class="panel stack">
-        ${empty("No intelligence cards yet. Create a demo card to try Learn More, or browse the concept catalog.")}
+        <h2 style="margin:0;font-family:var(--font-display);font-size:1.35rem;">Learn More</h2>
+        ${empty("No intelligence cards yet. Create a demo card, then open Learn More on it.")}
         <div class="actions">
           <button type="button" class="btn-primary" id="demo-card">Create demo card</button>
           <button type="button" class="btn" id="browse-concepts">Browse concepts</button>
+          <button type="button" class="btn" id="empty-monitor-tick">Run monitor tick</button>
         </div>
       </div>`;
       root.querySelector("#demo-card")?.addEventListener("click", async () => {
@@ -89,6 +91,16 @@
         }
       });
       root.querySelector("#browse-concepts")?.addEventListener("click", () => openConceptBrowser());
+      root.querySelector("#empty-monitor-tick")?.addEventListener("click", async () => {
+        try {
+          setStatus("Running monitor…");
+          await api("/v1/monitoring/tick", { method: "POST", json: {} });
+          setStatus("Monitor tick complete", "ok");
+          await renderIntelligence();
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      });
       return;
     }
     root.innerHTML = `<div class="panel list">${cards
@@ -512,6 +524,7 @@
         </div>
         <div class="actions">
           <button type="button" class="btn-primary" id="start-run">Run research</button>
+          <button type="button" class="btn" id="goto-learn-more">Try Learn More</button>
         </div>
         <div id="run-progress" class="meta" style="margin-top:.85rem;"></div>
       </div>
@@ -527,6 +540,16 @@
         </div>
       </div>
     </div>`;
+
+    root.querySelector("#goto-learn-more")?.addEventListener("click", async () => {
+      try {
+        setStatus("Opening Learn More…");
+        await api("/v1/knowledge/demo-card", { method: "POST", json: {} });
+      } catch (_) {
+        /* demo card may already exist */
+      }
+      await show("intelligence");
+    });
 
     async function createThesisFromRun(runId) {
       const resultEl = root.querySelector("#thesis-result");
