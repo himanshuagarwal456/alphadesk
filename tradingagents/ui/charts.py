@@ -14,6 +14,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from . import indicators
+from .chart_spec import ChartSpec, ChartType
+from .visualization_tokens import theme_tokens
 
 # Rating -> numeric position for the verdict dial (Sell..Buy).
 _RATING_SCALE = {
@@ -63,6 +65,130 @@ def _base_layout(fig: go.Figure, title: str = "") -> go.Figure:
         xaxis_rangeslider_visible=False,
     )
     return fig
+
+
+def apply_chart_layout(fig: go.Figure, spec: ChartSpec, *, theme: str = "light") -> go.Figure:
+    """Apply the common title, axes, legend, tooltip, and source treatment."""
+    token = theme_tokens(theme)
+    source = spec.source_metadata
+    caption = ""
+    if source:
+        caption = " · ".join(x for x in (source.provider, source.as_of) if x)
+    fig.update_layout(
+        title={"text": spec.title, "subtitle": {"text": spec.subtitle}, "font": {"family": token["title_family"]}},
+        template="plotly_dark" if theme == "dark" else "plotly_white",
+        paper_bgcolor=token["paper"], plot_bgcolor=token["plot"],
+        font={"family": token["font_family"], "color": token["ink"]},
+        colorway=token["series"], height=spec.config.get("height", token["chart_height"]),
+        margin={"l": 48, "r": 24, "t": 68 if spec.subtitle else 52, "b": 52},
+        legend={"orientation": "h", "y": -0.16}, hovermode="x unified",
+        meta={"chart_id": spec.id, "description": spec.description, "source": caption,
+              "empty_state": spec.empty_state, "interactions": spec.interactions.model_dump()},
+    )
+    formats = {
+        "percent": ".1%",
+        "currency": "$,.2f",
+        "currency_compact": "$.3s",
+        "integer": ",.0f",
+        "decimal_2": ".2f",
+    }
+    fig.update_xaxes(gridcolor=token["grid"], showgrid=True, tickformat=spec.config.get("date_format"))
+    fig.update_yaxes(
+        gridcolor=token["grid"], showgrid=True,
+        tickformat=formats.get(spec.number_format),
+    )
+    return fig
+
+
+def _frame(data) -> pd.DataFrame:
+    return data.copy() if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
+
+
+def time_series_chart(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    frame = _frame(data)
+    fig = go.Figure()
+    for field in spec.y_fields:
+        fill = "tozeroy" if spec.chart_type is ChartType.AREA else None
+        line = {"dash": "dash"} if spec.benchmark and field == spec.benchmark.field else {}
+        fig.add_trace(go.Scatter(x=frame[spec.x_field], y=frame[field], mode="lines", name=field,
+                                 fill=fill, line=line, connectgaps=False))
+    for annotation in spec.annotations:
+        if annotation.x is not None:
+            fig.add_vline(x=annotation.x, line_dash="dot", annotation_text=annotation.label)
+    return apply_chart_layout(fig, spec, theme=theme)
+
+
+def bar_chart(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    frame = _frame(data)
+    fig = go.Figure()
+    for field in spec.y_fields:
+        values = frame[field]
+        colors = None
+        if spec.config.get("semantic_colors"):
+            token = theme_tokens(theme)
+            colors = [token["positive"] if value >= 0 else token["negative"] for value in values]
+        fig.add_trace(go.Bar(x=frame[spec.x_field], y=values, name=field, marker_color=colors))
+    fig.update_layout(barmode="stack" if spec.chart_type is ChartType.STACKED_BAR else "group")
+    return apply_chart_layout(fig, spec, theme=theme)
+
+
+def donut_chart(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    frame = _frame(data)
+    fig = go.Figure(go.Pie(labels=frame[spec.category_field], values=frame[spec.y_fields[0]],
+                           hole=0.58, sort=False, textinfo="label+percent"))
+    return apply_chart_layout(fig, spec, theme=theme)
+
+
+def waterfall_chart(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    frame = _frame(data)
+    token = theme_tokens(theme)
+    measure = spec.config.get("measure") or ["relative"] * len(frame)
+    fig = go.Figure(go.Waterfall(
+        x=frame[spec.x_field], y=frame[spec.y_fields[0]], measure=measure,
+        increasing={"marker": {"color": token["positive"]}},
+        decreasing={"marker": {"color": token["negative"]}},
+        totals={"marker": {"color": token["benchmark"]}},
+    ))
+    return apply_chart_layout(fig, spec, theme=theme)
+
+
+def correlation_heatmap(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    frame = _frame(data)
+    matrix = frame if frame.index.equals(pd.Index(frame.columns)) else frame.corr(numeric_only=True)
+    fig = go.Figure(go.Heatmap(z=matrix.values, x=list(matrix.columns), y=list(matrix.index),
+                               zmin=-1, zmax=1, zmid=0, colorscale="RdBu", reversescale=True,
+                               text=matrix.round(2).astype(str).values, texttemplate="%{text}"))
+    return apply_chart_layout(fig, spec, theme=theme)
+
+
+def risk_return_scatter(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    frame = _frame(data)
+    y_field = spec.y_fields[0]
+    label_field = spec.category_field
+    size_field = spec.config.get("size_field")
+    fig = go.Figure(go.Scatter(
+        x=frame[spec.x_field], y=frame[y_field], mode="markers+text" if label_field else "markers",
+        text=frame[label_field] if label_field else None, textposition="top center",
+        marker={"size": frame[size_field] if size_field else theme_tokens(theme)["point_size"], "sizemode": "area"},
+        name=y_field,
+    ))
+    return apply_chart_layout(fig, spec, theme=theme)
+
+
+def drawdown_chart(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    frame = _frame(data)
+    values = frame[spec.y_fields[0]]
+    if spec.config.get("values_are_drawdown", False):
+        drawdown = values
+    else:
+        drawdown = values.div(values.cummax()).sub(1.0)
+    fig = go.Figure(go.Scatter(x=frame[spec.x_field], y=drawdown, mode="lines", fill="tozeroy",
+                               name="Drawdown", line={"color": theme_tokens(theme)["negative"]}))
+    return apply_chart_layout(fig, spec, theme=theme)
+
+
+def event_annotated_price_chart(data, *, spec: ChartSpec, theme: str = "light") -> go.Figure:
+    return time_series_chart(data, spec=spec, theme=theme)
 
 
 def price_chart(

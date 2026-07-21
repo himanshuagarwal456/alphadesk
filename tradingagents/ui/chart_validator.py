@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from .chart_registry import register_builtin_charts
 from .chart_selector import select_chart_spec
 from .chart_spec import ChartSpec, ChartTemplate
 from .visualization_intent import VisualizationIntent
@@ -46,4 +47,24 @@ def validate_chart_spec(
         and spec.target <= spec.stop
     ):
         errors.append("scenario target must exceed stop")
+    return ValidationResult(valid=not errors, errors=errors)
+
+
+def validate_declarative_spec(spec: ChartSpec, data: pd.DataFrame | None = None) -> ValidationResult:
+    """Validate registry requirements and normalized tabular inputs."""
+    errors: list[str] = []
+    registry = register_builtin_charts()
+    try:
+        missing = registry.validate_fields(spec)
+    except KeyError as exc:
+        return ValidationResult(valid=False, errors=[str(exc)])
+    if missing:
+        errors.append(f"missing required chart fields: {', '.join(missing)}")
+    if data is not None:
+        if data.empty:
+            errors.append("chart data is empty")
+        referenced = [field for field in [spec.x_field, spec.category_field, *spec.y_fields] if field]
+        absent = [field for field in referenced if field not in data.columns]
+        if absent and spec.chart_type is not ChartTemplate.HEATMAP:
+            errors.append(f"chart data is missing: {', '.join(absent)}")
     return ValidationResult(valid=not errors, errors=errors)

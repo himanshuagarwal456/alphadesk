@@ -6,6 +6,8 @@ feed (vertical = distinguishable posts, horizontal = full story arc with
 affected tickers).
 """
 
+from .chart_registry import ChartRegistry, register_builtin_charts, registry
+from .chart_spec import ChartSpec, ChartType
 from .deck_builder import build_feed, build_narrative, compute_dominance
 from .feed_schema import Card, CardKind, Feed, Narrative
 from .render import render_feed_html, write_feed_html
@@ -15,6 +17,9 @@ from .sample import sample_feed
 __all__ = [
     "Card",
     "CardKind",
+    "ChartRegistry",
+    "ChartSpec",
+    "ChartType",
     "Feed",
     "Narrative",
     "build_feed",
@@ -22,6 +27,8 @@ __all__ = [
     "compute_dominance",
     "load_saved_runs",
     "render_feed_html",
+    "register_builtin_charts",
+    "registry",
     "sample_feed",
     "write_feed_html",
 ]
