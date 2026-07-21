@@ -51,3 +51,27 @@ def test_feed_inserts_thesis_change_card(tmp_path):
     card = next(card for card in narrative.cards if card.card_type == "thesis_change")
     assert card.kind.value == "context"
     assert "downgraded" in card.headline.lower()
+    assert card.learn_more
+    assert any(
+        item.slug in {"thesis", "catalyst", "invalidation", "concentration-risk"}
+        or "thesis" in item.title.lower()
+        for item in card.learn_more
+    )
+
+
+def test_sample_feed_includes_thesis_learn_more():
+    from tradingagents.ui.render import render_feed_html
+    from tradingagents.ui.sample import sample_feed
+
+    feed = sample_feed()
+    thesis_story = next(
+        (n for n in feed.narratives if n.meta.get("story_kind") == "thesis_change"),
+        None,
+    )
+    assert thesis_story is not None
+    thesis_cards = [c for c in thesis_story.cards if c.card_type == "thesis_change"]
+    assert thesis_cards
+    assert any(c.learn_more for c in thesis_cards)
+    html = render_feed_html(feed)
+    assert "Learn More" in html
+    assert "learn_more" in html or "openLearnMore" in html

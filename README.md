@@ -68,7 +68,7 @@ alphadesk-api
 | API | http://127.0.0.1:8000/v1 |
 | Docs | http://127.0.0.1:8000/docs |
 
-**Learn More:** open **Intelligence** (or click **Try Learn More** on Workbench) → **Create demo card** → **Learn More** on the card.
+**Learn More:** open **Intelligence** (or click **Try Learn More** on Workbench) → **Create demo card** → **Learn More** on the card. On the FinTok feed (`alphadesk-feed`), thesis-change cards include a **Learn More** button with embedded concept explanations.
 
 Defaults use SQLite and an object store under `~/.tradingagents/`. Point `ALPHADESK_DATABASE_URL` at Postgres when needed, then re-run `alembic upgrade head`.
 

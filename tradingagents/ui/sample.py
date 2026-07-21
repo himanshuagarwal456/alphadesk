@@ -8,6 +8,8 @@ desk brief reflects the full book — not just two demo tickers.
 from __future__ import annotations
 
 import hashlib
+import tempfile
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -185,12 +187,65 @@ def sample_feed(portfolio: Any = None, *, as_of: str = "2026-01-15") -> Feed:
 
     Pass a real :class:`~tradingagents.portfolio.schemas.Portfolio` to cover
     every holding. Without one, falls back to the two-name NVDA/AAPL demo.
+    Includes a sample living-thesis revision so Thesis change + Learn More
+    cards appear in the demo feed.
     """
+    from tradingagents.agents.schemas import PortfolioDecision, PortfolioRating
+    from tradingagents.thesis import LivingThesisStore, build_thesis_update
+
+    thesis_root = Path(tempfile.mkdtemp(prefix="alphadesk-demo-thesis-"))
+    store = LivingThesisStore(thesis_root)
+    prior_date = "2026-01-01"
+    for symbol, prior_rating, new_rating, thesis in (
+        (
+            "NVDA",
+            PortfolioRating.BUY,
+            PortfolioRating.UNDERWEIGHT,
+            "AI demand remains, but valuation and concentration risk rose.",
+        ),
+        (
+            "AAPL",
+            PortfolioRating.HOLD,
+            PortfolioRating.BUY,
+            "Services mix and pricing power support a higher conviction stance.",
+        ),
+    ):
+        first, head = build_thesis_update(
+            symbol=symbol,
+            trade_date=prior_date,
+            stance="manage",
+            decision=PortfolioDecision(
+                rating=prior_rating,
+                executive_summary="Prior plan.",
+                investment_thesis=thesis,
+            ),
+            evidence_ids=[],
+            prior=None,
+        )
+        store.upsert_run(head, first)
+        second, head = build_thesis_update(
+            symbol=symbol,
+            trade_date=as_of,
+            stance="manage",
+            decision=PortfolioDecision(
+                rating=new_rating,
+                executive_summary="Updated plan.",
+                investment_thesis=thesis,
+            ),
+            evidence_ids=[f"ev_{symbol.lower()}_catalyst"],
+            prior=head,
+        )
+        store.upsert_run(head, second)
+
     if portfolio is not None and getattr(portfolio, "open_positions", None):
         runs, ohlcv_map = _runs_for_portfolio(portfolio, trade_date=as_of)
         if runs:
             return build_feed(
-                runs, portfolio=portfolio, ohlcv_map=ohlcv_map, as_of=as_of
+                runs,
+                portfolio=portfolio,
+                ohlcv_map=ohlcv_map,
+                as_of=as_of,
+                thesis_store=store,
             )
 
     nvda = sample_final_state(
@@ -233,4 +288,5 @@ def sample_feed(portfolio: Any = None, *, as_of: str = "2026-01-15") -> Feed:
             "AAPL": sample_ohlcv(start_price=210, trend=0.2),
         },
         as_of=as_of,
+        thesis_store=store,
     )

@@ -24,6 +24,26 @@ from .chart_spec import ChartSpec
 from .visualization_intent import VisualizationIntent
 
 
+class LearnMoreResource(BaseModel):
+    title: str
+    provider: str
+    url: str
+
+
+class LearnMoreItem(BaseModel):
+    """Offline concept payload for Learn More on feed cards."""
+
+    concept_id: str
+    slug: str
+    title: str
+    short_definition: str
+    explanation: str
+    why_it_matters: str = ""
+    difficulty: str = "beginner"
+    estimated_read_time: int = 3
+    resources: list[LearnMoreResource] = Field(default_factory=list)
+
+
 class CardKind(str, Enum):
     """Where a card sits in the narrative arc (drives styling + ordering)."""
 
@@ -68,6 +88,10 @@ class Card(BaseModel):
     novelty_score: float | None = Field(default=None, ge=0, le=1)
     visualization_intent: VisualizationIntent | None = None
     chart_spec: ChartSpec | None = None
+    learn_more: list[LearnMoreItem] = Field(
+        default_factory=list,
+        description="Embedded Learn More concepts for deep understanding on this card.",
+    )
 
 
 class Narrative(BaseModel):

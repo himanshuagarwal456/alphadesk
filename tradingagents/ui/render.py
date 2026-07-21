@@ -103,10 +103,54 @@ _TEMPLATE = r"""<!doctype html>
   .hint-swipe {
     color:var(--muted); font-size:11px; text-align:right; padding:0 18px 8px;
   }
+  .learn-btn {
+    appearance:none; border:1px solid rgba(15,107,92,.35); background:rgba(15,107,92,.08);
+    color:var(--accent); font:inherit; font-weight:600; font-size:13px;
+    padding:8px 12px; border-radius:10px; cursor:pointer; margin-top:6px; align-self:flex-start;
+  }
+  .learn-btn:hover { background:rgba(15,107,92,.14); }
+  .drawer-backdrop {
+    position:fixed; inset:0; background:rgba(26,34,28,.35); z-index:40;
+  }
+  .drawer {
+    position:fixed; top:0; right:0; width:min(420px,100vw); height:100vh; z-index:50;
+    background:rgba(255,252,246,.98); border-left:1px solid var(--line);
+    box-shadow:-16px 0 36px rgba(26,34,28,.12); display:flex; flex-direction:column;
+    animation:slide-in .2s ease;
+  }
+  @keyframes slide-in { from { transform:translateX(16px); opacity:.7;} to { transform:none; opacity:1;} }
+  .drawer-head {
+    display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
+    padding:16px 16px 12px; border-bottom:1px solid var(--line);
+  }
+  .drawer-kicker {
+    margin:0 0 4px; color:var(--accent); font-size:11px; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase;
+  }
+  .drawer-head h2 {
+    margin:0; font-family:var(--display); font-size:1.35rem; line-height:1.15;
+  }
+  .drawer-close {
+    appearance:none; border:1px solid var(--line); background:#fffdf8;
+    font:inherit; padding:6px 10px; border-radius:8px; cursor:pointer;
+  }
+  .drawer-body { overflow:auto; padding:14px 16px 28px; display:grid; gap:14px; }
+  .learn-block h3 { margin:0 0 4px; font-family:var(--display); font-size:1.02rem; }
+  .learn-block p { margin:0; line-height:1.5; color:var(--ink); font-size:.95rem; }
+  .concept-pick {
+    width:100%; text-align:left; appearance:none; border:1px solid var(--line);
+    background:#fffdf8; border-radius:12px; padding:10px 12px; cursor:pointer; font:inherit;
+  }
+  .concept-pick strong { display:block; margin-bottom:2px; }
+  .resource-list { margin:0; padding-left:18px; display:grid; gap:6px; }
+  .resource-list a { color:var(--accent); font-weight:600; text-decoration:none; }
+  .resource-list a:hover { text-decoration:underline; }
+  body.drawer-open { overflow:hidden; }
 </style>
 </head>
 <body>
 <div id="feed"></div>
+<div id="learn-host"></div>
 <script>
 const FEED = __FEED_JSON__;
 
@@ -115,6 +159,111 @@ function el(tag, cls, txt) {
   if (cls) e.className = cls;
   if (txt != null) e.textContent = txt;
   return e;
+}
+
+function ensureLearnHost() {
+  const host = document.getElementById("learn-host");
+  if (host.dataset.ready) return host;
+  host.innerHTML = `
+    <div class="drawer-backdrop" id="learn-backdrop" hidden></div>
+    <aside class="drawer" id="learn-drawer" hidden aria-hidden="true">
+      <div class="drawer-head">
+        <div>
+          <p class="drawer-kicker">Learn More</p>
+          <h2 id="learn-title">Concept</h2>
+        </div>
+        <button type="button" class="drawer-close" id="learn-close">Close</button>
+      </div>
+      <div class="drawer-body" id="learn-body"></div>
+    </aside>`;
+  host.dataset.ready = "1";
+  host.querySelector("#learn-close").onclick = closeLearnMore;
+  host.querySelector("#learn-backdrop").onclick = closeLearnMore;
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") closeLearnMore();
+  });
+  return host;
+}
+
+function closeLearnMore() {
+  const backdrop = document.getElementById("learn-backdrop");
+  const drawer = document.getElementById("learn-drawer");
+  if (!backdrop || !drawer) return;
+  backdrop.hidden = true;
+  drawer.hidden = true;
+  drawer.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("drawer-open");
+}
+
+function openLearnMore(items, cardTitle) {
+  if (!items || !items.length) return;
+  ensureLearnHost();
+  const drawer = document.getElementById("learn-drawer");
+  const backdrop = document.getElementById("learn-backdrop");
+  const body = document.getElementById("learn-body");
+  document.getElementById("learn-title").textContent = cardTitle || "Related concepts";
+  backdrop.hidden = false;
+  drawer.hidden = false;
+  drawer.setAttribute("aria-hidden", "false");
+  document.body.classList.add("drawer-open");
+
+  if (items.length === 1) {
+    renderLearnItem(items[0], items, cardTitle);
+    return;
+  }
+  body.innerHTML = "";
+  items.forEach((item) => {
+    const btn = el("button", "concept-pick");
+    btn.type = "button";
+    btn.appendChild(el("strong", null, item.title));
+    btn.appendChild(el("div", "source-meta", (item.difficulty || "") + " · ~" + (item.estimated_read_time || 3) + " min"));
+    btn.appendChild(el("div", "source-summary", item.short_definition || ""));
+    btn.onclick = () => renderLearnItem(item, items, cardTitle);
+    body.appendChild(btn);
+  });
+}
+
+function renderLearnItem(item, allItems, cardTitle) {
+  const body = document.getElementById("learn-body");
+  document.getElementById("learn-title").textContent = item.title;
+  body.innerHTML = "";
+  body.appendChild(el("p", "story-sum", item.short_definition || ""));
+
+  const why = el("section", "learn-block");
+  why.appendChild(el("h3", null, "Why it matters here"));
+  why.appendChild(el("p", null, item.why_it_matters || ""));
+  body.appendChild(why);
+
+  const expl = el("section", "learn-block");
+  expl.appendChild(el("h3", null, "Explanation"));
+  expl.appendChild(el("p", null, item.explanation || item.short_definition || ""));
+  body.appendChild(expl);
+
+  if (item.resources && item.resources.length) {
+    const res = el("section", "learn-block");
+    res.appendChild(el("h3", null, "Further reading"));
+    const ul = el("ul", "resource-list");
+    item.resources.forEach((r) => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = r.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = r.title;
+      li.appendChild(a);
+      li.appendChild(el("span", "source-meta", " · " + (r.provider || "")));
+      ul.appendChild(li);
+    });
+    res.appendChild(ul);
+    body.appendChild(res);
+  }
+
+  if (allItems && allItems.length > 1) {
+    const back = el("button", "learn-btn", "← All related concepts");
+    back.type = "button";
+    back.onclick = () => openLearnMore(allItems, cardTitle);
+    body.appendChild(back);
+  }
 }
 
 function renderCard(card) {
@@ -145,6 +294,12 @@ function renderCard(card) {
   }
   if (card.evidence && card.evidence.length) {
     c.appendChild(renderSources(card.evidence));
+  }
+  if (card.learn_more && card.learn_more.length) {
+    const btn = el("button", "learn-btn", "Learn More");
+    btn.type = "button";
+    btn.onclick = () => openLearnMore(card.learn_more, card.title || "Learn More");
+    c.appendChild(btn);
   }
   return c;
 }

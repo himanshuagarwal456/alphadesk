@@ -22,6 +22,7 @@ from . import charts
 from .chart_selector import select_chart_spec
 from .chart_validator import validate_chart_spec
 from .feed_schema import Card, CardKind, Feed, Narrative
+from .knowledge_attach import attach_learn_more
 from .visualization_intent import AnalyticalQuestion, VisualizationIntent
 
 _RATING_VALUE = {"sell": 0, "underweight": 1, "hold": 2, "overweight": 3, "buy": 4}
@@ -387,18 +388,24 @@ def _thesis_change_card(
     diff = diff_or_none(store.load_snapshot(symbol, prior_date), current)
     if diff is None:
         return None
-    return Card(
+    card = Card(
         id=f"{symbol}-thesis-{trade_date}",
         kind=CardKind.CONTEXT,
         title="Thesis change",
         headline=diff.headline,
-        badges=["Thesis", f"{diff.rating_delta:+d} rating step"],
+        body=(
+            f"Prior thesis moved {diff.rating_delta:+d} rating step. "
+            "Use Learn More to unpack the concepts behind this revision."
+        ),
+        badges=["Thesis", f"{diff.rating_delta:+d} rating step", "investment thesis"],
+        symbols=[symbol.upper()],
         card_type="thesis_change",
         evidence_ids=diff.evidence_added,
         portfolio_impact=portfolio_impact,
         materiality_score=diff.materiality_score,
         chart=_fig_to_dict(charts.rating_dial(current.rating.value)),
     )
+    return attach_learn_more(card, symbol=symbol.upper())
 
 
 def _coerce_evidence(items: list[Any]) -> list[Evidence]:
@@ -446,6 +453,16 @@ def build_feed(
         return Feed(as_of=as_of, narratives=[])
 
     stories = [_build_desk_brief(units, portfolio=portfolio, as_of=as_of)]
+
+    thesis_units = [
+        u
+        for u in units
+        if any(c.card_type == "thesis_change" for c in u.cards)
+    ]
+    if thesis_units:
+        stories.append(
+            _build_thesis_change_story(units=thesis_units, as_of=as_of)
+        )
 
     trim = [
         u for u in units if u.meta.get("held") and _unit_rating(u) in {"Sell", "Underweight"}
@@ -673,6 +690,29 @@ def _build_theme_story(
 
     cards: list[Card] = [hook, affected]
 
+    # Surface thesis revisions early so Learn More is one swipe away.
+    for unit in units:
+        sym = unit.symbol or "?"
+        thesis = next(
+            (c for c in unit.cards if c.card_type == "thesis_change"),
+            None,
+        )
+        if thesis is None:
+            continue
+        cards.append(
+            attach_learn_more(
+                thesis.model_copy(
+                    update={
+                        "id": f"{story_id}-{sym}-thesis",
+                        "title": f"{sym} · Thesis change",
+                        "symbols": [sym],
+                        "badges": list(dict.fromkeys([sym, *thesis.badges])),
+                    }
+                ),
+                symbol=sym,
+            )
+        )
+
     # Prefer news/macro evidence slides; fall back to market/fundamentals.
     for unit in units:
         sym = unit.symbol or "?"
@@ -690,13 +730,16 @@ def _build_theme_story(
         if preferred:
             for card in preferred[:2]:
                 cards.append(
-                    card.model_copy(
-                        update={
-                            "id": f"{story_id}-{sym}-{card.id}",
-                            "title": f"{sym} · {card.title}",
-                            "symbols": [sym],
-                            "badges": list(dict.fromkeys([sym, *card.badges])),
-                        }
+                    attach_learn_more(
+                        card.model_copy(
+                            update={
+                                "id": f"{story_id}-{sym}-{card.id}",
+                                "title": f"{sym} · {card.title}",
+                                "symbols": [sym],
+                                "badges": list(dict.fromkeys([sym, *card.badges])),
+                            }
+                        ),
+                        symbol=sym,
                     )
                 )
         tension = next((c for c in unit.cards if c.kind is CardKind.TENSION), None)
@@ -714,13 +757,18 @@ def _build_theme_story(
         verdict = next((c for c in unit.cards if c.kind is CardKind.VERDICT), None)
         if verdict:
             cards.append(
-                verdict.model_copy(
-                    update={
-                        "id": f"{story_id}-{sym}-verdict",
-                        "title": f"{sym} · Verdict",
-                        "symbols": [sym],
-                        "badges": list(dict.fromkeys([sym, *verdict.badges])),
-                    }
+                attach_learn_more(
+                    verdict.model_copy(
+                        update={
+                            "id": f"{story_id}-{sym}-verdict",
+                            "title": f"{sym} · Verdict",
+                            "symbols": [sym],
+                            "badges": list(
+                                dict.fromkeys([sym, "investment thesis", *verdict.badges])
+                            ),
+                        }
+                    ),
+                    symbol=sym,
                 )
             )
 
@@ -741,4 +789,77 @@ def _build_theme_story(
             "trade_date": as_of,
             "symbol_count": len(symbols),
         },
+    )
+
+
+def _build_thesis_change_story(
+    *,
+    units: list[Narrative],
+    as_of: str | None,
+) -> Narrative:
+    """Dedicated post so thesis revisions are easy to find and Learn More."""
+    symbols = [u.symbol for u in units if u.symbol]
+    cards: list[Card] = [
+        Card(
+            id="thesis-story-hook",
+            kind=CardKind.HOOK,
+            title="Thesis updates",
+            headline=f"Living theses moved for {', '.join(symbols)}",
+            body=(
+                "These cards capture material thesis revisions. "
+                "Open Learn More on each card to understand the concepts "
+                "behind conviction, catalysts, and invalidation."
+            ),
+            badges=["Thesis", f"{len(symbols)} names"],
+            symbols=symbols,
+            card_type="thesis_change",
+        )
+    ]
+    for unit in units:
+        sym = unit.symbol or "?"
+        thesis = next(
+            (c for c in unit.cards if c.card_type == "thesis_change"),
+            None,
+        )
+        if thesis is None:
+            continue
+        cards.append(
+            attach_learn_more(
+                thesis.model_copy(
+                    update={
+                        "id": f"thesis-story-{sym}",
+                        "title": f"{sym} · Thesis change",
+                        "symbols": [sym],
+                        "badges": list(dict.fromkeys([sym, *thesis.badges])),
+                    }
+                ),
+                symbol=sym,
+            )
+        )
+        verdict = next((c for c in unit.cards if c.kind is CardKind.VERDICT), None)
+        if verdict is not None:
+            cards.append(
+                attach_learn_more(
+                    verdict.model_copy(
+                        update={
+                            "id": f"thesis-story-{sym}-verdict",
+                            "title": f"{sym} · Current stance",
+                            "symbols": [sym],
+                            "badges": list(
+                                dict.fromkeys([sym, "investment thesis", *verdict.badges])
+                            ),
+                        }
+                    ),
+                    symbol=sym,
+                )
+            )
+    return Narrative(
+        id=f"thesis-changes-{as_of or 'latest'}",
+        title="Thesis changes",
+        summary="Material living-thesis revisions with Learn More context.",
+        symbols=symbols,
+        dominance=92.0,
+        badges=["Thesis", "Learn More"],
+        cards=cards,
+        meta={"story_kind": "thesis_change", "trade_date": as_of},
     )
