@@ -36,8 +36,12 @@ def test_web_app_served(client: TestClient) -> None:
     assert js.status_code == 200
     assert "X-Workspace-Id" in js.text
     assert "/v1/runs/start" in js.text
+    assert "openDrawerShell" in js.text
+    assert "is-open" in js.text
     assert js.headers.get("cache-control", "").startswith("no-store")
 
     css = client.get("/app/styles.css")
     assert css.status_code == 200
     assert "--accent" in css.text
+    assert "drawer[hidden]" in css.text
+    assert ".drawer.is-open" in css.text

@@ -165,6 +165,26 @@ def test_render_feed_html_embeds_deck():
     assert "Sources (" in html
     assert "finance.yahoo.com" in html
     assert "fred.stlouisfed.org" in html
+    assert "Comments" in html
+    assert "Market Analyst" in html or "Portfolio Manager" in html
+    assert 'null, "Details"' not in html
+    assert "drawer[hidden]" in html
+    assert "is-open" in html
+
+
+def test_build_narrative_attaches_relevant_agent_comments():
+    nrv = deck_builder.build_narrative(
+        sample_final_state("NVDA"), portfolio=_Book(), ohlcv=sample_ohlcv()
+    )
+    macro = next(card for card in nrv.cards if card.title == "Macro")
+    assert macro.comments
+    agents = {c.agent for c in macro.comments}
+    assert "News Analyst" in agents or "Macro" in agents
+    tension = next(card for card in nrv.cards if card.kind is CardKind.TENSION)
+    assert {c.agent for c in tension.comments} >= {"Bull Researcher", "Bear Researcher"}
+    # Macro should not dump every desk agent onto the card
+    assert len(macro.comments) <= 3
+    assert "Aggressive Analyst" not in {c.agent for c in macro.comments}
 
 
 # --- saved-run loader -----------------------------------------------------

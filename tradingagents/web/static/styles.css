@@ -321,7 +321,12 @@ textarea { min-height: 7rem; resize: vertical; }
   background: rgba(26, 34, 28, 0.35);
   backdrop-filter: blur(2px);
   z-index: 40;
+  display: none;
   animation: fade-in 180ms ease;
+}
+
+.drawer-backdrop.is-open {
+  display: block;
 }
 
 .drawer {
@@ -331,12 +336,22 @@ textarea { min-height: 7rem; resize: vertical; }
   width: min(440px, 100vw);
   height: 100vh;
   z-index: 50;
-  display: flex;
+  display: none;
   flex-direction: column;
   background: rgba(255, 252, 246, 0.97);
   border-left: 1px solid var(--line);
   box-shadow: -18px 0 40px rgba(26, 34, 28, 0.12);
   animation: slide-in 220ms ease;
+}
+
+.drawer.is-open {
+  display: flex;
+}
+
+/* Author CSS `display` must not override the HTML hidden attribute. */
+.drawer[hidden],
+.drawer-backdrop[hidden] {
+  display: none !important;
 }
 
 .drawer-head {

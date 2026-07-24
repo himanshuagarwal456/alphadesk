@@ -102,7 +102,8 @@ class KnowledgeResource(BaseModel):
     @model_validator(mode="after")
     def _assign_id(self) -> KnowledgeResource:
         if self.id is None:
-            self.id = _stable_id("kr", str(self.url), self.provider.lower())
+            # Title+provider keeps IDs stable when we refresh the destination URL.
+            self.id = _stable_id("kr", self.title.strip().lower(), self.provider.lower())
         return self
 
 

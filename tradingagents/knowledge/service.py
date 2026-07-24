@@ -31,16 +31,27 @@ class KnowledgeContextService:
         self._cards = IntelligenceCardRepository(session)
 
     def ensure_seeded(self) -> int:
-        if self._knowledge.count_concepts() > 0:
-            return 0
+        """Install catalog on empty DB; always refresh resources/links from catalog."""
         concepts, resources, links = load_catalog()
-        for concept in concepts:
-            self._knowledge.upsert_concept(concept)
+        created = 0
+        if self._knowledge.count_concepts() == 0:
+            for concept in concepts:
+                self._knowledge.upsert_concept(concept)
+            created = len(concepts)
+        else:
+            # Keep concept copy current without wiping user progress.
+            for concept in concepts:
+                self._knowledge.upsert_concept(concept)
         for resource in resources:
             self._knowledge.upsert_resource(resource)
-        for link in links:
-            self._knowledge.link_concept_resource(link)
-        return len(concepts)
+        # Replace outbound links so URL refreshes do not leave homepage stubs.
+        for concept in concepts:
+            if concept.id:
+                self._knowledge.replace_concept_resources(
+                    concept.id,
+                    [link for link in links if link.concept_id == concept.id],
+                )
+        return created
 
     def list_concepts(self) -> list[Concept]:
         self.ensure_seeded()

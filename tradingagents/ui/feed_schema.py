@@ -44,6 +44,17 @@ class LearnMoreItem(BaseModel):
     resources: list[LearnMoreResource] = Field(default_factory=list)
 
 
+class AgentComment(BaseModel):
+    """A short agent take shown in the Facebook-style comment thread on a card."""
+
+    agent: str = Field(description="Display name, e.g. 'Market Analyst'.")
+    text: str = Field(description="One or two sentences attributed to this agent.")
+    role: str = Field(
+        default="",
+        description="Optional role chip, e.g. 'Bull', 'Bear', 'PM'.",
+    )
+
+
 class CardKind(str, Enum):
     """Where a card sits in the narrative arc (drives styling + ordering)."""
 
@@ -61,7 +72,7 @@ class Card(BaseModel):
     kind: CardKind
     title: str = Field(description="Short label, e.g. 'Desk brief', 'Affected', 'Verdict'.")
     headline: str = Field(description="The 1–2 line hook shown large on the card.")
-    body: str = Field(default="", description="Longer text revealed on expand/tap.")
+    body: str = Field(default="", description="Longer text retained for APIs; UI prefers comments.")
     badges: list[str] = Field(
         default_factory=list,
         description="Short chips, e.g. 'Underweight', '18% of book', 'NVDA'.",
@@ -73,6 +84,10 @@ class Card(BaseModel):
     chart: dict | None = Field(
         default=None,
         description="A Plotly figure as a plain dict (figure.to_json()); None for text-only.",
+    )
+    comments: list[AgentComment] = Field(
+        default_factory=list,
+        description="Most relevant agent takes for this card (not every agent).",
     )
     card_type: str | None = Field(
         default=None,

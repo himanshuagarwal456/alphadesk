@@ -189,21 +189,29 @@
     if (!backdrop || !drawer) return;
     backdrop.hidden = true;
     drawer.hidden = true;
+    backdrop.classList.remove("is-open");
+    drawer.classList.remove("is-open");
     drawer.setAttribute("aria-hidden", "true");
     document.body.classList.remove("drawer-open");
   }
 
-  async function openConceptBrowser() {
+  function openDrawerShell() {
     ensureDrawer();
     const drawer = document.getElementById("learn-drawer");
     const backdrop = document.getElementById("learn-backdrop");
-    const body = document.getElementById("learn-body");
-    document.getElementById("learn-title").textContent = "Concept catalog";
-    body.innerHTML = `<p class="meta">Loading…</p>`;
     backdrop.hidden = false;
     drawer.hidden = false;
+    backdrop.classList.add("is-open");
+    drawer.classList.add("is-open");
     drawer.setAttribute("aria-hidden", "false");
     document.body.classList.add("drawer-open");
+    return { drawer, backdrop, body: document.getElementById("learn-body") };
+  }
+
+  async function openConceptBrowser() {
+    const { body } = openDrawerShell();
+    document.getElementById("learn-title").textContent = "Concept catalog";
+    body.innerHTML = `<p class="meta">Loading…</p>`;
     try {
       const concepts = await api("/v1/knowledge/concepts");
       body.innerHTML = `<div class="list">${concepts
@@ -224,16 +232,9 @@
   }
 
   async function openLearnMore(cardId) {
-    ensureDrawer();
-    const drawer = document.getElementById("learn-drawer");
-    const backdrop = document.getElementById("learn-backdrop");
-    const body = document.getElementById("learn-body");
+    const { body } = openDrawerShell();
     document.getElementById("learn-title").textContent = "Related concepts";
     body.innerHTML = `<p class="meta">Finding concepts for this card…</p>`;
-    backdrop.hidden = false;
-    drawer.hidden = false;
-    drawer.setAttribute("aria-hidden", "false");
-    document.body.classList.add("drawer-open");
     try {
       const concepts = await api(`/v1/knowledge/cards/${encodeURIComponent(cardId)}/concepts`);
       if (!concepts.length) {
@@ -263,16 +264,9 @@
   }
 
   async function openLearnMoreContext(conceptId, cardId = null) {
-    ensureDrawer();
-    const drawer = document.getElementById("learn-drawer");
-    const backdrop = document.getElementById("learn-backdrop");
-    const body = document.getElementById("learn-body");
+    const { body } = openDrawerShell();
     document.getElementById("learn-title").textContent = "Loading…";
     body.innerHTML = `<p class="meta">Building context…</p>`;
-    backdrop.hidden = false;
-    drawer.hidden = false;
-    drawer.setAttribute("aria-hidden", "false");
-    document.body.classList.add("drawer-open");
     try {
       const params = new URLSearchParams({ concept_id: conceptId });
       if (cardId) params.set("intelligence_card_id", cardId);
