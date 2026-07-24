@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from tradingagents.api.deps import get_db_session, get_workspace_id
 from tradingagents.domain.schemas import IntelligenceCardRecord
 from tradingagents.knowledge.schemas import (
+    CardLearnMore,
     Concept,
     KnowledgeContext,
     ProgressStatus,
@@ -84,6 +85,21 @@ def concepts_for_card(
     return KnowledgeContextService(session, workspace_id=workspace_id).concepts_for_card(
         card_id
     )
+
+
+@router.get("/cards/{card_id}/learn-more", response_model=CardLearnMore)
+def learn_more_for_card(
+    card_id: str,
+    workspace_id: str = Depends(get_workspace_id),
+    session: Session = Depends(get_db_session),
+) -> CardLearnMore:
+    """Card-first Learn More: unpack this card, then optional glossary terms."""
+    try:
+        return KnowledgeContextService(
+            session, workspace_id=workspace_id
+        ).build_card_learn_more(card_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post(

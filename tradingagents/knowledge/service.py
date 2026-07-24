@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from tradingagents.domain.schemas import IntelligenceCardRecord
 from tradingagents.knowledge.schemas import (
+    CardLearnMore,
     Concept,
     ConceptDifficulty,
     IntelligenceCardConcept,
@@ -128,6 +129,94 @@ class KnowledgeContextService:
             if concept is not None:
                 concepts.append(concept)
         return concepts
+
+    def build_card_learn_more(self, card_id: str) -> CardLearnMore:
+        """Explain the Intelligence Card itself; concepts are supporting glossary."""
+        self.ensure_seeded()
+        card = self._cards.get(self._workspace_id, card_id)
+        if card is None:
+            raise KeyError("card not found")
+
+        concepts = self.concepts_for_card(card_id)
+        symbol = card.symbol
+        headline = (card.headline or "").strip()
+        body = (card.body or "").strip()
+        claim_bits = [bit for bit in (headline, body) if bit]
+        if claim_bits:
+            what = (
+                f"This card’s claim: {claim_bits[0]}"
+                + (f" Detail: {claim_bits[1]}" if len(claim_bits) > 1 else "")
+            )
+        else:
+            what = (
+                f"This Intelligence Card ({card.title or card_id}) flags a research "
+                "signal. Read it as a decision prompt, not a glossary topic."
+            )
+
+        book = self._load_book()
+        if symbol and book is not None and book.holds(symbol):
+            weight = book.weights().get(symbol.upper())
+            weight_txt = f" ({weight * 100:.1f}% of book)" if weight is not None else ""
+            why = (
+                f"You hold {symbol}{weight_txt}. Use this card to decide whether "
+                "conviction, risk, or size should change — not just to collect a concept."
+            )
+        elif symbol:
+            why = (
+                f"{symbol} is not held. Ask whether this card makes it a watchlist "
+                "or initiate candidate, or whether it is noise."
+            )
+        else:
+            why = (
+                "Map this card onto the book: concentration, thesis invalidation, "
+                "and whether any held name’s stance should change."
+            )
+
+        title_l = (card.title or "").lower()
+        kind = (card.card_type or "").lower()
+        if "thesis" in kind or "thesis" in title_l:
+            check = (
+                "Revisit catalysts and invalidation conditions, then decide if the "
+                "living thesis rating or size still fits."
+            )
+        elif "event" in kind or "news" in title_l:
+            check = (
+                "Check if the event is priced in, whether the next catalyst changed, "
+                "and if risk limits need a trim or add."
+            )
+        else:
+            check = (
+                "Ask: does this change conviction, timing, or size — or is it noise "
+                "relative to the living thesis?"
+            )
+
+        resources: list = []
+        seen: set[str] = set()
+        for concept in concepts[:3]:
+            if not concept.id:
+                continue
+            for resource in self._knowledge.list_resources_for_concept(concept.id):
+                rid = resource.id or str(resource.url)
+                if rid in seen:
+                    continue
+                seen.add(rid)
+                resources.append(resource)
+                if len(resources) >= 5:
+                    break
+            if len(resources) >= 5:
+                break
+
+        return CardLearnMore(
+            card_id=card.id,
+            title=card.title or "Learn More",
+            headline=headline,
+            symbol=symbol,
+            what_this_means=what,
+            why_it_matters=why,
+            what_to_check=check,
+            concepts=concepts,
+            external_resources=resources,
+        )
 
     def build_context(
         self,

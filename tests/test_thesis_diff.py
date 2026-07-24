@@ -51,11 +51,13 @@ def test_feed_inserts_thesis_change_card(tmp_path):
     card = next(card for card in narrative.cards if card.card_type == "thesis_change")
     assert card.kind.value == "context"
     assert "downgraded" in card.headline.lower()
-    assert card.learn_more
+    assert card.learn_brief is not None
+    assert "claim" in card.learn_brief.what_this_means.lower() or "downgraded" in card.learn_brief.what_this_means.lower()
+    assert card.learn_more or card.learn_brief.concepts
     assert any(
         item.slug in {"thesis", "catalyst", "invalidation", "concentration-risk"}
         or "thesis" in item.title.lower()
-        for item in card.learn_more
+        for item in (card.learn_more or card.learn_brief.concepts)
     )
 
 
@@ -71,7 +73,35 @@ def test_sample_feed_includes_thesis_learn_more():
     assert thesis_story is not None
     thesis_cards = [c for c in thesis_story.cards if c.card_type == "thesis_change"]
     assert thesis_cards
-    assert any(c.learn_more for c in thesis_cards)
+    assert any(c.learn_brief or c.learn_more for c in thesis_cards)
     html = render_feed_html(feed)
     assert "Learn More" in html
-    assert "learn_more" in html or "openLearnMore" in html
+    assert "What this card means" in html
+    assert "openLearnMore" in html
+
+
+def test_learn_brief_explains_card_not_only_catalog():
+    from tradingagents.ui.feed_schema import AgentComment, Card, CardKind
+    from tradingagents.ui.knowledge_attach import build_learn_brief
+
+    card = Card(
+        id="nvda-news",
+        kind=CardKind.EVIDENCE,
+        title="News",
+        headline="Export controls tighten for NVDA customers",
+        body="Sector headlines flag softer enterprise demand ahead of earnings.",
+        comments=[
+            AgentComment(
+                agent="News Analyst",
+                text="No company-specific catalyst before the print.",
+            )
+        ],
+        portfolio_impact="Held position: 22.0% of portfolio; review sizing and thesis.",
+        symbols=["NVDA"],
+        card_type="event",
+    )
+    brief = build_learn_brief(card, symbol="NVDA")
+    assert "Export controls" in brief.what_this_means or "claim" in brief.what_this_means.lower()
+    assert "22.0%" in brief.why_it_matters or "NVDA" in brief.why_it_matters
+    assert brief.what_to_check
+    assert any("News Analyst" in t for t in brief.agent_takeaways)

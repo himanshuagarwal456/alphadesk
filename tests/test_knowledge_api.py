@@ -125,6 +125,19 @@ def test_context_progress_and_demo_card(client: TestClient) -> None:
     assert with_card.status_code == 200, with_card.text
     assert "AMD" in with_card.json()["why_it_matters"]
 
+    brief = client.get(
+        f"/v1/knowledge/cards/{card['id']}/learn-more",
+        headers=_headers(),
+    )
+    assert brief.status_code == 200, brief.text
+    payload = brief.json()
+    assert "What this card" not in payload  # field names, not headings
+    assert payload["what_this_means"]
+    assert "AMD" in payload["what_this_means"] or "margin" in payload["what_this_means"].lower()
+    assert payload["why_it_matters"]
+    assert payload["what_to_check"]
+    assert isinstance(payload.get("concepts"), list)
+
 
 @pytest.mark.server
 def test_concept_lookup_by_slug_and_missing(client: TestClient) -> None:
