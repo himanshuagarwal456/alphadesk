@@ -44,6 +44,31 @@ class LearnMoreItem(BaseModel):
     resources: list[LearnMoreResource] = Field(default_factory=list)
 
 
+class LearnMoreBrief(BaseModel):
+    """Card-first Learn More briefing — explains *this* card, then optional terms."""
+
+    title: str = Field(description="Card title shown in the drawer header.")
+    headline: str = Field(default="", description="The claim or hook on the card.")
+    what_this_means: str = Field(
+        description="Plain-language unpacking of the card content itself."
+    )
+    why_it_matters: str = Field(
+        description="Why this card matters for the symbol, thesis, or book."
+    )
+    what_to_check: str = Field(
+        default="",
+        description="Concrete next questions so the user can act on the card.",
+    )
+    agent_takeaways: list[str] = Field(
+        default_factory=list,
+        description="Short quotes from the most relevant agent comments.",
+    )
+    concepts: list[LearnMoreItem] = Field(
+        default_factory=list,
+        description="Supporting glossary terms found in the card language.",
+    )
+
+
 class AgentComment(BaseModel):
     """A short agent take shown in the Facebook-style comment thread on a card."""
 
@@ -89,6 +114,10 @@ class Card(BaseModel):
         default_factory=list,
         description="Most relevant agent takes for this card (not every agent).",
     )
+    learn_brief: LearnMoreBrief | None = Field(
+        default=None,
+        description="Card-first Learn More briefing (content unpack + optional terms).",
+    )
     card_type: str | None = Field(
         default=None,
         description="Intelligence claim type, e.g. event, risk, thesis_change.",
@@ -105,7 +134,7 @@ class Card(BaseModel):
     chart_spec: ChartSpec | None = None
     learn_more: list[LearnMoreItem] = Field(
         default_factory=list,
-        description="Embedded Learn More concepts for deep understanding on this card.",
+        description="Legacy concept list; prefer learn_brief.concepts when present.",
     )
 
 

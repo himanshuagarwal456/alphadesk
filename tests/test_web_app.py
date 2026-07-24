@@ -38,6 +38,8 @@ def test_web_app_served(client: TestClient) -> None:
     assert "/v1/runs/start" in js.text
     assert "openDrawerShell" in js.text
     assert "is-open" in js.text
+    assert "learn-more" in js.text
+    assert "What this card means" in js.text
     assert js.headers.get("cache-control", "").startswith("no-store")
 
     css = client.get("/app/styles.css")

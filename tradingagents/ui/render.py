@@ -225,13 +225,10 @@ function closeLearnMore() {
   document.body.classList.remove("drawer-open");
 }
 
-function openLearnMore(items, cardTitle) {
-  if (!items || !items.length) return;
+function openLearnMore(briefOrItems, cardTitle) {
   ensureLearnHost();
   const drawer = document.getElementById("learn-drawer");
   const backdrop = document.getElementById("learn-backdrop");
-  const body = document.getElementById("learn-body");
-  document.getElementById("learn-title").textContent = cardTitle || "Related concepts";
   backdrop.hidden = false;
   drawer.hidden = false;
   backdrop.classList.add("is-open");
@@ -239,30 +236,90 @@ function openLearnMore(items, cardTitle) {
   drawer.setAttribute("aria-hidden", "false");
   document.body.classList.add("drawer-open");
 
-  if (items.length === 1) {
-    renderLearnItem(items[0], items, cardTitle);
+  // New shape: card briefing object with nested concepts.
+  if (briefOrItems && !Array.isArray(briefOrItems) && briefOrItems.what_this_means) {
+    renderLearnBrief(briefOrItems);
     return;
   }
-  body.innerHTML = "";
-  items.forEach((item) => {
-    const btn = el("button", "concept-pick");
-    btn.type = "button";
-    btn.appendChild(el("strong", null, item.title));
-    btn.appendChild(el("div", "source-meta", (item.difficulty || "") + " · ~" + (item.estimated_read_time || 3) + " min"));
-    btn.appendChild(el("div", "source-summary", item.short_definition || ""));
-    btn.onclick = () => renderLearnItem(item, items, cardTitle);
-    body.appendChild(btn);
+  const items = Array.isArray(briefOrItems) ? briefOrItems : [];
+  if (!items.length) return;
+  // Legacy: list of concepts only — still open on the card title, then terms.
+  renderLearnBrief({
+    title: cardTitle || "Learn More",
+    headline: "",
+    what_this_means: "Open a key term below to unpack language used on this card.",
+    why_it_matters: "These concepts help you interpret the claim — they are not the card itself.",
+    what_to_check: "Pick the term that blocked understanding, then return to the card decision.",
+    agent_takeaways: [],
+    concepts: items,
   });
 }
 
-function renderLearnItem(item, allItems, cardTitle) {
+function renderLearnBrief(brief) {
+  const body = document.getElementById("learn-body");
+  document.getElementById("learn-title").textContent = brief.title || "Learn More";
+  body.innerHTML = "";
+
+  if (brief.headline) {
+    body.appendChild(el("p", "story-sum", brief.headline));
+  }
+
+  const meaning = el("section", "learn-block");
+  meaning.appendChild(el("h3", null, "What this card means"));
+  meaning.appendChild(el("p", null, brief.what_this_means || ""));
+  body.appendChild(meaning);
+
+  const why = el("section", "learn-block");
+  why.appendChild(el("h3", null, "Why it matters here"));
+  why.appendChild(el("p", null, brief.why_it_matters || ""));
+  body.appendChild(why);
+
+  if (brief.what_to_check) {
+    const check = el("section", "learn-block");
+    check.appendChild(el("h3", null, "What to check next"));
+    check.appendChild(el("p", null, brief.what_to_check));
+    body.appendChild(check);
+  }
+
+  if (brief.agent_takeaways && brief.agent_takeaways.length) {
+    const takes = el("section", "learn-block");
+    takes.appendChild(el("h3", null, "Agent takeaways"));
+    const ul = el("ul", "resource-list");
+    brief.agent_takeaways.forEach((line) => {
+      const li = document.createElement("li");
+      li.textContent = line;
+      ul.appendChild(li);
+    });
+    takes.appendChild(ul);
+    body.appendChild(takes);
+  }
+
+  const concepts = brief.concepts || [];
+  if (concepts.length) {
+    const terms = el("section", "learn-block");
+    terms.appendChild(el("h3", null, "Key terms on this card"));
+    terms.appendChild(el("p", "source-meta", "Optional glossary — tap a term for a deeper definition."));
+    concepts.forEach((item) => {
+      const btn = el("button", "concept-pick");
+      btn.type = "button";
+      btn.appendChild(el("strong", null, item.title));
+      btn.appendChild(el("div", "source-meta", (item.difficulty || "") + " · ~" + (item.estimated_read_time || 3) + " min"));
+      btn.appendChild(el("div", "source-summary", item.short_definition || ""));
+      btn.onclick = () => renderLearnItem(item, brief);
+      terms.appendChild(btn);
+    });
+    body.appendChild(terms);
+  }
+}
+
+function renderLearnItem(item, brief) {
   const body = document.getElementById("learn-body");
   document.getElementById("learn-title").textContent = item.title;
   body.innerHTML = "";
   body.appendChild(el("p", "story-sum", item.short_definition || ""));
 
   const why = el("section", "learn-block");
-  why.appendChild(el("h3", null, "Why it matters here"));
+  why.appendChild(el("h3", null, "Why it matters on this card"));
   why.appendChild(el("p", null, item.why_it_matters || ""));
   body.appendChild(why);
 
@@ -290,10 +347,10 @@ function renderLearnItem(item, allItems, cardTitle) {
     body.appendChild(res);
   }
 
-  if (allItems && allItems.length > 1) {
-    const back = el("button", "learn-btn", "← All related concepts");
+  if (brief) {
+    const back = el("button", "learn-btn", "← Back to this card");
     back.type = "button";
-    back.onclick = () => openLearnMore(allItems, cardTitle);
+    back.onclick = () => renderLearnBrief(brief);
     body.appendChild(back);
   }
 }
@@ -351,10 +408,13 @@ function renderCard(card) {
   if (card.evidence && card.evidence.length) {
     c.appendChild(renderSources(card.evidence));
   }
-  if (card.learn_more && card.learn_more.length) {
+  if (card.learn_brief || (card.learn_more && card.learn_more.length)) {
     const btn = el("button", "learn-btn", "Learn More");
     btn.type = "button";
-    btn.onclick = () => openLearnMore(card.learn_more, card.title || "Learn More");
+    btn.onclick = () => openLearnMore(
+      card.learn_brief || card.learn_more,
+      card.title || "Learn More"
+    );
     c.appendChild(btn);
   }
   return c;

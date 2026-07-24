@@ -233,34 +233,56 @@
 
   async function openLearnMore(cardId) {
     const { body } = openDrawerShell();
-    document.getElementById("learn-title").textContent = "Related concepts";
-    body.innerHTML = `<p class="meta">Finding concepts for this card…</p>`;
+    document.getElementById("learn-title").textContent = "Learn More";
+    body.innerHTML = `<p class="meta">Unpacking this card…</p>`;
     try {
-      const concepts = await api(`/v1/knowledge/cards/${encodeURIComponent(cardId)}/concepts`);
-      if (!concepts.length) {
-        body.innerHTML = empty("No matching concepts for this card yet.");
-        return;
-      }
-      body.innerHTML = `<div class="list">${concepts
-        .map(
-          (c) => `<button type="button" class="row concept-pick" data-concept-id="${escapeHtml(c.id)}">
-            <strong>${escapeHtml(c.title)}</strong>
-            <div class="meta">${escapeHtml(c.difficulty)} · ~${escapeHtml(c.estimated_read_time)} min</div>
-            <div>${escapeHtml(c.short_definition)}</div>
-          </button>`
-        )
-        .join("")}</div>`;
-      body.querySelectorAll(".concept-pick").forEach((btn) => {
-        btn.addEventListener("click", () =>
-          openLearnMoreContext(btn.dataset.conceptId, cardId)
-        );
-      });
-      if (concepts.length === 1) {
-        await openLearnMoreContext(concepts[0].id, cardId);
-      }
+      const brief = await api(`/v1/knowledge/cards/${encodeURIComponent(cardId)}/learn-more`);
+      renderCardLearnBrief(brief, cardId);
     } catch (err) {
       body.innerHTML = empty(err.message);
     }
+  }
+
+  function renderCardLearnBrief(brief, cardId) {
+    const body = document.getElementById("learn-body");
+    document.getElementById("learn-title").textContent = brief.title || "Learn More";
+    const concepts = brief.concepts || [];
+    const resources = (brief.external_resources || [])
+      .map(
+        (r) => `<li>
+          <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
+          <span class="meta"> · ${escapeHtml(r.provider)}</span>
+        </li>`
+      )
+      .join("");
+    const conceptRows = concepts
+      .map(
+        (c) => `<button type="button" class="row concept-pick" data-concept-id="${escapeHtml(c.id)}">
+          <strong>${escapeHtml(c.title)}</strong>
+          <div class="meta">${escapeHtml(c.difficulty)} · ~${escapeHtml(c.estimated_read_time)} min</div>
+          <div>${escapeHtml(c.short_definition)}</div>
+        </button>`
+      )
+      .join("");
+    body.innerHTML = `
+      ${brief.headline ? `<p class="lede learn-tldr">${escapeHtml(brief.headline)}</p>` : ""}
+      <section class="learn-block">
+        <h3>What this card means</h3>
+        <p>${escapeHtml(brief.what_this_means || "")}</p>
+      </section>
+      <section class="learn-block">
+        <h3>Why it matters here</h3>
+        <p>${escapeHtml(brief.why_it_matters || "")}</p>
+      </section>
+      ${brief.what_to_check ? `<section class="learn-block"><h3>What to check next</h3><p>${escapeHtml(brief.what_to_check)}</p></section>` : ""}
+      ${conceptRows ? `<section class="learn-block"><h3>Key terms on this card</h3><p class="meta">Optional glossary — tap a term for a deeper definition.</p><div class="list">${conceptRows}</div></section>` : ""}
+      ${resources ? `<section class="learn-block"><h3>Further reading</h3><ul class="resource-list">${resources}</ul></section>` : ""}
+    `;
+    body.querySelectorAll(".concept-pick").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        openLearnMoreContext(btn.dataset.conceptId, cardId)
+      );
+    });
   }
 
   async function openLearnMoreContext(conceptId, cardId = null) {
@@ -289,7 +311,7 @@
       body.innerHTML = `
         <p class="lede learn-tldr">${escapeHtml(ctx.concept.short_definition)}</p>
         <section class="learn-block">
-          <h3>Why it matters</h3>
+          <h3>Why it matters on this card</h3>
           <p>${escapeHtml(ctx.why_it_matters)}</p>
         </section>
         <section class="learn-block">
@@ -303,6 +325,7 @@
         ${related ? `<section class="learn-block"><h3>Related</h3><div class="chip-row">${related}</div></section>` : ""}
         ${resources ? `<section class="learn-block"><h3>Further reading</h3><ul class="resource-list">${resources}</ul></section>` : ""}
         <div class="actions learn-actions">
+          ${cardId ? `<button type="button" class="btn" id="learn-back-card">← Back to this card</button>` : ""}
           <button type="button" class="btn" id="learn-save">${progress.saved ? "Unsave" : "Save"}</button>
           <button type="button" class="btn-primary" id="learn-complete">${progress.status === "completed" ? "Completed" : "Mark complete"}</button>
         </div>
@@ -311,6 +334,7 @@
       body.querySelectorAll(".related-concept").forEach((btn) => {
         btn.addEventListener("click", () => openLearnMoreContext(btn.dataset.conceptId, cardId));
       });
+      body.querySelector("#learn-back-card")?.addEventListener("click", () => openLearnMore(cardId));
       body.querySelector("#learn-save")?.addEventListener("click", async () => {
         try {
           await api(`/v1/knowledge/concepts/${encodeURIComponent(conceptId)}/progress`, {

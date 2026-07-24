@@ -378,6 +378,10 @@ def build_narrative(
         evidence=evidence, as_of=trade_date or None,
     )
     stance = "manage" if held else "initiate"
+    cards = [
+        attach_learn_more(card, symbol=symbol)
+        for card in cards
+    ]
     return Narrative(
         id=f"{symbol}-{trade_date}",
         symbol=symbol,
@@ -723,6 +727,7 @@ def _build_desk_brief(
             portfolio_impact="Start with the highest-dominance theme post.",
         ),
     ]
+    cards = [attach_learn_more(card) for card in cards]
     return Narrative(
         id=f"desk-brief-{as_of or 'latest'}",
         title="Desk brief",
@@ -873,6 +878,10 @@ def _build_theme_story(
     # Cap album length so horizontal swipe stays scannable
     if len(cards) > 10:
         cards = cards[:2] + cards[2:10]
+    cards = [
+        attach_learn_more(card, symbol=(card.symbols[0] if card.symbols else None))
+        for card in cards
+    ]
 
     return Narrative(
         id=f"{story_id}-{as_of or 'latest'}",
@@ -957,6 +966,10 @@ def _build_thesis_change_story(
                     symbol=sym,
                 )
             )
+    cards = [
+        attach_learn_more(card, symbol=(card.symbols[0] if card.symbols else None))
+        for card in cards
+    ]
     return Narrative(
         id=f"thesis-changes-{as_of or 'latest'}",
         title="Thesis changes",

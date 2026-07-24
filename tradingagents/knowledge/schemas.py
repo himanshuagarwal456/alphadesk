@@ -148,3 +148,17 @@ class KnowledgeContext(BaseModel):
     explanation_level: ConceptDifficulty = ConceptDifficulty.INTERMEDIATE
     intelligence_card_id: str | None = None
     symbol: str | None = None
+
+
+class CardLearnMore(BaseModel):
+    """Card-first Learn More briefing for an Intelligence Card."""
+
+    card_id: str
+    title: str
+    headline: str = ""
+    symbol: str | None = None
+    what_this_means: str
+    why_it_matters: str
+    what_to_check: str = ""
+    concepts: list[Concept] = Field(default_factory=list)
+    external_resources: list[KnowledgeResource] = Field(default_factory=list)
