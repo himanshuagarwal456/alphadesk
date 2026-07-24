@@ -19,6 +19,7 @@ from tradingagents.evidence import Evidence
 from tradingagents.thesis import LivingThesisStore, diff_or_none
 
 from . import charts
+from .agent_comments import comments_for_card, comments_from_lines
 from .chart_selector import select_chart_spec
 from .chart_validator import validate_chart_spec
 from .feed_schema import Card, CardKind, Feed, Narrative
@@ -223,6 +224,9 @@ def build_narrative(
     cards.append(Card(
         id=f"{symbol}-hook", kind=CardKind.HOOK, title=symbol,
         headline=hook_headline, badges=badges, chart=hook_chart,
+        comments=comments_for_card(
+            kind=CardKind.HOOK, title=symbol, final_state=final_state
+        ),
         card_type="portfolio_impact", portfolio_impact=portfolio_impact,
         visualization_intent=hook_intent, chart_spec=hook_spec,
     ))
@@ -241,6 +245,12 @@ def build_narrative(
             id=f"{symbol}-market", kind=CardKind.EVIDENCE, title="Market",
             headline=_first_sentence(final_state["market_report"]),
             body=final_state["market_report"], chart=chart,
+            comments=comments_for_card(
+                kind=CardKind.EVIDENCE,
+                title="Market",
+                final_state=final_state,
+                body=final_state["market_report"],
+            ),
         ))
 
     # --- EVIDENCE: sentiment (gauge when we parsed a score) ---
@@ -254,6 +264,12 @@ def build_narrative(
         cards.append(Card(
             id=f"{symbol}-sentiment", kind=CardKind.EVIDENCE, title="Sentiment",
             headline=headline, body=final_state["sentiment_report"], chart=chart,
+            comments=comments_for_card(
+                kind=CardKind.EVIDENCE,
+                title="Sentiment",
+                final_state=final_state,
+                body=final_state["sentiment_report"],
+            ),
         ))
 
     # --- EVIDENCE: fundamentals ---
@@ -262,6 +278,12 @@ def build_narrative(
             id=f"{symbol}-fundamentals", kind=CardKind.EVIDENCE, title="Fundamentals",
             headline=_first_sentence(final_state["fundamentals_report"]),
             body=final_state["fundamentals_report"],
+            comments=comments_for_card(
+                kind=CardKind.EVIDENCE,
+                title="Fundamentals",
+                final_state=final_state,
+                body=final_state["fundamentals_report"],
+            ),
             card_type="explanation",
             evidence_ids=[item.id for item in filing_evidence],
             evidence=filing_evidence,
@@ -272,10 +294,17 @@ def build_narrative(
 
     # --- EVIDENCE: macro backdrop (official FRED observations) ---
     if macro_evidence:
+        macro_body = "\n".join(item.summary for item in macro_evidence if item.summary)
         cards.append(Card(
             id=f"{symbol}-macro", kind=CardKind.EVIDENCE, title="Macro",
             headline=f"Macro backdrop: {len(macro_evidence)} FRED series",
-            body="\n".join(item.summary for item in macro_evidence),
+            body=macro_body,
+            comments=comments_for_card(
+                kind=CardKind.EVIDENCE,
+                title="Macro",
+                final_state=final_state,
+                body=macro_body,
+            ),
             card_type="explanation",
             evidence_ids=[item.id for item in macro_evidence],
             evidence=macro_evidence,
@@ -290,6 +319,12 @@ def build_narrative(
             id=f"{symbol}-news", kind=CardKind.EVIDENCE, title="News",
             headline=_first_sentence(final_state["news_report"]),
             body=final_state["news_report"], card_type="event",
+            comments=comments_for_card(
+                kind=CardKind.EVIDENCE,
+                title="News",
+                final_state=final_state,
+                body=final_state["news_report"],
+            ),
             evidence_ids=[item.id for item in news_evidence],
             evidence=news_evidence, portfolio_impact=portfolio_impact,
             source_quality_score=source_quality,
@@ -315,6 +350,12 @@ def build_narrative(
         cards.append(Card(
             id=f"{symbol}-tension", kind=CardKind.TENSION, title="Bull vs Bear",
             headline="Where the bulls and bears disagree", body=body, chart=chart,
+            comments=comments_for_card(
+                kind=CardKind.TENSION,
+                title="Bull vs Bear",
+                final_state=final_state,
+                body=body,
+            ),
         ))
 
     # --- VERDICT: the decision dial + what it means for the book ---
@@ -323,6 +364,12 @@ def build_narrative(
             id=f"{symbol}-verdict", kind=CardKind.VERDICT, title="Verdict",
             headline=hook_headline, body=verdict_md, badges=badges,
             chart=_fig_to_dict(charts.rating_dial(rating or "Hold")),
+            comments=comments_for_card(
+                kind=CardKind.VERDICT,
+                title="Verdict",
+                final_state=final_state,
+                body=verdict_md,
+            ),
             card_type="portfolio_impact", portfolio_impact=portfolio_impact,
         ))
 
@@ -396,6 +443,14 @@ def _thesis_change_card(
         body=(
             f"Prior thesis moved {diff.rating_delta:+d} rating step. "
             "Use Learn More to unpack the concepts behind this revision."
+        ),
+        comments=comments_for_card(
+            kind=CardKind.CONTEXT,
+            title="Thesis change",
+            body=(
+                f"Prior thesis moved {diff.rating_delta:+d} rating step. "
+                "Review catalysts and invalidation before changing size."
+            ),
         ),
         badges=["Thesis", f"{diff.rating_delta:+d} rating step", "investment thesis"],
         symbols=[symbol.upper()],
@@ -584,13 +639,25 @@ def _build_desk_brief(
         )
 
     chart = _fig_to_dict(charts.book_impact_bars(rows, title="Book impact by name"))
+    desk_body = "\n".join(body_lines)
     cards = [
         Card(
             id="desk-hook",
             kind=CardKind.HOOK,
             title="Desk brief",
             headline=headline,
-            body="\n".join(body_lines),
+            body=desk_body,
+            comments=comments_from_lines(
+                [
+                    f"{len(units)} names researched with {held_n} held.",
+                    f"{trim_n} risk-off and {buy_n} bullish calls in this brief.",
+                    (
+                        f"Affected held exposure ≈ {book_pct * 100:.0f}% of the book."
+                        if book_pct > 0
+                        else "Watchlist-heavy brief — limited book impact today."
+                    ),
+                ]
+            ),
             badges=["Desk", f"{len(symbols)} symbols"],
             symbols=symbols,
             chart=chart,
@@ -616,6 +683,17 @@ def _build_desk_brief(
                 )
                 for r in rows
             ),
+            comments=comments_from_lines(
+                [
+                    f"{r['symbol']}: {r['rating'] or 'n/a'}"
+                    + (
+                        f", held {r['weight'] * 100:.0f}% of book"
+                        if r["weight"]
+                        else ", watchlist"
+                    )
+                    for r in rows[:3]
+                ]
+            ),
             badges=symbols,
             symbols=symbols,
             chart=chart,
@@ -629,6 +707,16 @@ def _build_desk_brief(
                 "trim themes first when risk-off names are held."
                 if trim_n
                 else "Swipe into theme stories for the full evidence arc."
+            ),
+            comments=comments_from_lines(
+                [
+                    (
+                        "Start with the Protect the book story when held names are risk-off."
+                        if trim_n
+                        else "Open the bullish theme when conviction leans positive."
+                    ),
+                    "Each story album lists every affected symbol.",
+                ]
             ),
             badges=[f"{trim_n} trim", f"{buy_n} add"],
             symbols=symbols,
@@ -668,6 +756,9 @@ def _build_theme_story(
         body=lead + "\n\n" + "\n".join(
             f"- {u.symbol}: {u.summary or u.title}" for u in units
         ),
+        comments=comments_from_lines(
+            [lead] + [f"{u.symbol}: {u.summary or u.title}" for u in units[:2]]
+        ),
         badges=[kind.capitalize(), f"{len(symbols)} names"],
         symbols=symbols,
         chart=_fig_to_dict(charts.book_impact_bars(rows, title=title)),
@@ -682,6 +773,13 @@ def _build_theme_story(
             f"{r['symbol']} — {r['rating'] or 'n/a'}"
             + (f" · {r['weight']*100:.0f}% of book" if r.get("weight") else "")
             for r in rows
+        ),
+        comments=comments_from_lines(
+            [
+                f"{r['symbol']} — {r['rating'] or 'n/a'}"
+                + (f", {r['weight']*100:.0f}% of book" if r.get("weight") else "")
+                for r in rows[:3]
+            ]
         ),
         badges=symbols,
         symbols=symbols,
@@ -809,6 +907,12 @@ def _build_thesis_change_story(
                 "These cards capture material thesis revisions. "
                 "Open Learn More on each card to understand the concepts "
                 "behind conviction, catalysts, and invalidation."
+            ),
+            comments=comments_from_lines(
+                [
+                    f"Living theses moved for {', '.join(symbols)}.",
+                    "Open Learn More for catalysts, conviction, and invalidation.",
+                ]
             ),
             badges=["Thesis", f"{len(symbols)} names"],
             symbols=symbols,

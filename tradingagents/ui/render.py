@@ -89,9 +89,34 @@ _TEMPLATE = r"""<!doctype html>
     flex:1; min-height:240px; background:#f3efe6; border:1px solid var(--line);
     border-radius:12px; overflow:hidden;
   }
-  .body { color:var(--muted); font-size:13px; line-height:1.5; white-space:pre-wrap;
-    max-height:28vh; overflow:auto; }
-  details.body-wrap, details.sources { margin-top:4px; }
+  .comments {
+    margin-top:6px; border-top:1px solid var(--line); padding-top:10px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .comments-label {
+    font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--muted);
+  }
+  .comment {
+    display:grid; grid-template-columns:36px 1fr; gap:10px; align-items:start;
+  }
+  .avatar {
+    width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
+    background:rgba(15,107,92,.14); color:var(--accent); font-size:12px; font-weight:700;
+  }
+  .comment-bubble {
+    background:#f3efe6; border:1px solid var(--line); border-radius:14px 14px 14px 4px;
+    padding:8px 11px;
+  }
+  .comment-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:3px; }
+  .comment-agent { font-size:13px; font-weight:700; color:var(--ink); }
+  .comment-role {
+    font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--accent); background:rgba(15,107,92,.10); padding:2px 6px; border-radius:6px;
+  }
+  .comment-text { color:var(--ink); font-size:13px; line-height:1.45; }
+  .impact { color:var(--muted); font-size:12px; line-height:1.4; }
+  details.sources { margin-top:4px; }
   details summary { color:var(--accent); cursor:pointer; font-size:13px; font-weight:500; }
   .source { border-top:1px solid var(--line); padding:8px 0; }
   .source a { color:var(--ink); font-size:13px; font-weight:600; text-decoration:none; }
@@ -110,14 +135,17 @@ _TEMPLATE = r"""<!doctype html>
   }
   .learn-btn:hover { background:rgba(15,107,92,.14); }
   .drawer-backdrop {
-    position:fixed; inset:0; background:rgba(26,34,28,.35); z-index:40;
+    position:fixed; inset:0; background:rgba(26,34,28,.35); z-index:40; display:none;
   }
+  .drawer-backdrop.is-open { display:block; }
   .drawer {
     position:fixed; top:0; right:0; width:min(420px,100vw); height:100vh; z-index:50;
     background:rgba(255,252,246,.98); border-left:1px solid var(--line);
-    box-shadow:-16px 0 36px rgba(26,34,28,.12); display:flex; flex-direction:column;
+    box-shadow:-16px 0 36px rgba(26,34,28,.12); display:none; flex-direction:column;
     animation:slide-in .2s ease;
   }
+  .drawer.is-open { display:flex; }
+  .drawer[hidden], .drawer-backdrop[hidden] { display:none !important; }
   @keyframes slide-in { from { transform:translateX(16px); opacity:.7;} to { transform:none; opacity:1;} }
   .drawer-head {
     display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
@@ -132,7 +160,7 @@ _TEMPLATE = r"""<!doctype html>
   }
   .drawer-close {
     appearance:none; border:1px solid var(--line); background:#fffdf8;
-    font:inherit; padding:6px 10px; border-radius:8px; cursor:pointer;
+    font:inherit; padding:6px 10px; border-radius:8px; cursor:pointer; flex-shrink:0;
   }
   .drawer-body { overflow:auto; padding:14px 16px 28px; display:grid; gap:14px; }
   .learn-block h3 { margin:0 0 4px; font-family:var(--display); font-size:1.02rem; }
@@ -191,6 +219,8 @@ function closeLearnMore() {
   if (!backdrop || !drawer) return;
   backdrop.hidden = true;
   drawer.hidden = true;
+  backdrop.classList.remove("is-open");
+  drawer.classList.remove("is-open");
   drawer.setAttribute("aria-hidden", "true");
   document.body.classList.remove("drawer-open");
 }
@@ -204,6 +234,8 @@ function openLearnMore(items, cardTitle) {
   document.getElementById("learn-title").textContent = cardTitle || "Related concepts";
   backdrop.hidden = false;
   drawer.hidden = false;
+  backdrop.classList.add("is-open");
+  drawer.classList.add("is-open");
   drawer.setAttribute("aria-hidden", "false");
   document.body.classList.add("drawer-open");
 
@@ -266,6 +298,33 @@ function renderLearnItem(item, allItems, cardTitle) {
   }
 }
 
+function initials(name) {
+  return String(name || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join("") || "?";
+}
+
+function renderComments(comments) {
+  const wrap = el("div", "comments");
+  wrap.appendChild(el("div", "comments-label", "Comments"));
+  (comments || []).forEach((comment) => {
+    const row = el("div", "comment");
+    row.appendChild(el("div", "avatar", initials(comment.agent)));
+    const bubble = el("div", "comment-bubble");
+    const meta = el("div", "comment-meta");
+    meta.appendChild(el("span", "comment-agent", comment.agent || "Agent"));
+    if (comment.role) meta.appendChild(el("span", "comment-role", comment.role));
+    bubble.appendChild(meta);
+    bubble.appendChild(el("div", "comment-text", comment.text || ""));
+    row.appendChild(bubble);
+    wrap.appendChild(row);
+  });
+  return wrap;
+}
+
 function renderCard(card) {
   const c = el("article", "card");
   const head = el("div", "card-head");
@@ -283,14 +342,11 @@ function renderCard(card) {
     requestAnimationFrame(() => Plotly.newPlot(chart, fig.data || [], fig.layout || {},
       {responsive:true, displayModeBar:false}));
   }
-  if (card.body) {
-    const wrap = el("details", "body-wrap");
-    wrap.appendChild(el("summary", null, "Details"));
-    wrap.appendChild(el("div", "body", card.body));
-    c.appendChild(wrap);
+  if (card.comments && card.comments.length) {
+    c.appendChild(renderComments(card.comments));
   }
   if (card.portfolio_impact) {
-    c.appendChild(el("div", "body", "Portfolio impact: " + card.portfolio_impact));
+    c.appendChild(el("div", "impact", "Portfolio impact: " + card.portfolio_impact));
   }
   if (card.evidence && card.evidence.length) {
     c.appendChild(renderSources(card.evidence));

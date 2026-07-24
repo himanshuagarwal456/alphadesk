@@ -107,6 +107,23 @@ class KnowledgeRepository:
         self._session.flush()
         return link
 
+    def replace_concept_resources(
+        self, concept_id: str, links: list[ConceptResource]
+    ) -> None:
+        """Drop prior outbound links for ``concept_id`` and write ``links``."""
+        existing = list(
+            self._session.scalars(
+                select(ConceptResourceRow).where(
+                    ConceptResourceRow.concept_id == concept_id
+                )
+            )
+        )
+        for row in existing:
+            self._session.delete(row)
+        self._session.flush()
+        for link in links:
+            self.link_concept_resource(link)
+
     def link_card_concept(self, link: IntelligenceCardConcept) -> IntelligenceCardConcept:
         row = self._session.scalars(
             select(IntelligenceCardConceptRow).where(

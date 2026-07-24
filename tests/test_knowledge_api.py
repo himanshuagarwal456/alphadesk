@@ -32,6 +32,16 @@ def test_catalog_seed_loads_expected_concepts() -> None:
     assert any(c.slug == "gross-margin" for c in concepts)
     assert resources
     assert links
+    homepage_stubs = (
+        "https://www.investor.gov/introduction-investing",
+        "https://www.finra.org/investors",
+        "https://www.cfainstitute.org/en/research/foundation",
+    )
+    urls = {str(r.url).rstrip("/") for r in resources}
+    for stub in homepage_stubs:
+        assert stub.rstrip("/") not in urls
+    assert any("grossmargin" in str(r.url) for r in resources)
+    assert any("asset-allocation" in str(r.url) for r in resources)
 
 
 @pytest.mark.server
@@ -45,6 +55,18 @@ def test_list_concepts_seeds_and_returns_catalog(client: TestClient) -> None:
     second = client.get("/v1/knowledge/concepts", headers=_headers())
     assert second.status_code == 200
     assert len(second.json()) == len(concepts)
+
+    concept = next(c for c in concepts if c["slug"] == "diversification")
+    ctx = client.get(
+        "/v1/knowledge/context",
+        headers=_headers(),
+        params={"concept_id": concept["id"]},
+    )
+    assert ctx.status_code == 200, ctx.text
+    urls = [r["url"] for r in ctx.json().get("external_resources") or []]
+    assert urls
+    assert "https://www.finra.org/investors" not in urls
+    assert any("asset" in u.lower() or "allocation" in u.lower() for u in urls)
 
 
 @pytest.mark.server

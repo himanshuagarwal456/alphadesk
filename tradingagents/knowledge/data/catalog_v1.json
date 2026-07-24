@@ -244,20 +244,42 @@
   ],
   "resources": [
     {
-      "title": "Investor.gov — Financial Navigators",
+      "title": "Investor.gov — Stocks",
       "provider": "SEC Investor.gov",
-      "url": "https://www.investor.gov/introduction-investing",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks",
+      "resource_type": "guide",
+      "difficulty": "beginner",
+      "estimated_read_time": 8,
+      "access_type": "free",
+      "quality_score": 0.95,
+      "concept_slugs": ["pe-ratio", "thesis", "guidance"]
+    },
+    {
+      "title": "Investor.gov — Asset Allocation",
+      "provider": "SEC Investor.gov",
+      "url": "https://www.investor.gov/introduction-investing/getting-started/asset-allocation",
       "resource_type": "guide",
       "difficulty": "beginner",
       "estimated_read_time": 10,
       "access_type": "free",
       "quality_score": 0.95,
-      "concept_slugs": ["pe-ratio", "diversification", "volatility", "thesis"]
+      "concept_slugs": ["diversification", "position-sizing", "concentration-risk"]
     },
     {
-      "title": "FINRA — Smart Investing",
+      "title": "Investor.gov — Risk Tolerance",
+      "provider": "SEC Investor.gov",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/risk",
+      "resource_type": "article",
+      "difficulty": "beginner",
+      "estimated_read_time": 7,
+      "access_type": "free",
+      "quality_score": 0.94,
+      "concept_slugs": ["volatility", "drawdown", "beta", "concentration-risk"]
+    },
+    {
+      "title": "FINRA — Asset Allocation and Diversification",
       "provider": "FINRA",
-      "url": "https://www.finra.org/investors",
+      "url": "https://www.finra.org/investors/investing/investing-basics/asset-allocation-diversification",
       "resource_type": "guide",
       "difficulty": "beginner",
       "estimated_read_time": 8,
@@ -266,15 +288,37 @@
       "concept_slugs": ["diversification", "concentration-risk", "position-sizing", "drawdown"]
     },
     {
-      "title": "CFA Institute — Investor Education",
+      "title": "FINRA — Investment Risk",
+      "provider": "FINRA",
+      "url": "https://www.finra.org/investors/investing/investing-basics/risk",
+      "resource_type": "article",
+      "difficulty": "beginner",
+      "estimated_read_time": 6,
+      "access_type": "free",
+      "quality_score": 0.91,
+      "concept_slugs": ["volatility", "drawdown", "beta"]
+    },
+    {
+      "title": "CFA Institute — Free Cash Flow Valuation",
       "provider": "CFA Institute",
-      "url": "https://www.cfainstitute.org/en/research/foundation",
+      "url": "https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/free-cash-flow-valuation",
       "resource_type": "guide",
       "difficulty": "intermediate",
       "estimated_read_time": 15,
       "access_type": "free",
       "quality_score": 0.93,
-      "concept_slugs": ["free-cash-flow", "ev-ebitda", "moat", "beta"]
+      "concept_slugs": ["free-cash-flow", "ev-ebitda"]
+    },
+    {
+      "title": "Investopedia — Beta",
+      "provider": "Investopedia",
+      "url": "https://www.investopedia.com/terms/b/beta.asp",
+      "resource_type": "glossary",
+      "difficulty": "intermediate",
+      "estimated_read_time": 6,
+      "access_type": "free",
+      "quality_score": 0.74,
+      "concept_slugs": ["beta", "volatility", "moat"]
     },
     {
       "title": "Investopedia — Gross Margin",
@@ -299,28 +343,6 @@
       "concept_slugs": ["free-cash-flow"]
     },
     {
-      "title": "SEC EDGAR Search",
-      "provider": "SEC",
-      "url": "https://www.sec.gov/edgar/search/",
-      "resource_type": "filing",
-      "difficulty": "intermediate",
-      "estimated_read_time": 5,
-      "access_type": "free",
-      "quality_score": 0.98,
-      "concept_slugs": ["sec-filing", "guidance", "evidence-quality"]
-    },
-    {
-      "title": "Investor.gov — Risk Tolerance",
-      "provider": "SEC Investor.gov",
-      "url": "https://www.investor.gov/introduction-investing/investing-basics/risk",
-      "resource_type": "article",
-      "difficulty": "beginner",
-      "estimated_read_time": 7,
-      "access_type": "free",
-      "quality_score": 0.94,
-      "concept_slugs": ["volatility", "drawdown", "beta", "concentration-risk"]
-    },
-    {
       "title": "Investopedia — Economic Moat",
       "provider": "Investopedia",
       "url": "https://www.investopedia.com/ask/answers/05/economicmoat.asp",
@@ -330,6 +352,39 @@
       "access_type": "free",
       "quality_score": 0.74,
       "concept_slugs": ["moat", "pricing-power"]
+    },
+    {
+      "title": "Investopedia — Investment Thesis",
+      "provider": "Investopedia",
+      "url": "https://www.investopedia.com/terms/i/investment-thesis.asp",
+      "resource_type": "glossary",
+      "difficulty": "beginner",
+      "estimated_read_time": 5,
+      "access_type": "free",
+      "quality_score": 0.76,
+      "concept_slugs": ["thesis", "catalyst", "invalidation"]
+    },
+    {
+      "title": "SEC EDGAR Full-Text Search",
+      "provider": "SEC",
+      "url": "https://efts.sec.gov/LATEST/search-index",
+      "resource_type": "filing",
+      "difficulty": "intermediate",
+      "estimated_read_time": 5,
+      "access_type": "free",
+      "quality_score": 0.98,
+      "concept_slugs": ["sec-filing", "guidance", "evidence-quality"]
+    },
+    {
+      "title": "SEC — How to Read a 10-K",
+      "provider": "SEC",
+      "url": "https://www.sec.gov/oiea/investor-alerts-and-bulletins/how-read-10-kib_reada10k",
+      "resource_type": "guide",
+      "difficulty": "beginner",
+      "estimated_read_time": 10,
+      "access_type": "free",
+      "quality_score": 0.97,
+      "concept_slugs": ["sec-filing", "guidance", "look-ahead-bias"]
     }
   ]
 }
